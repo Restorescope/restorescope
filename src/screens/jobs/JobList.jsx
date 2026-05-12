@@ -41,7 +41,7 @@ export default function JobList() {
   return (
     <div className="min-h-screen bg-ink-50">
       <Header breadcrumb={[{ label: 'Jobs' }]} />
-      <main className="max-w-7xl mx-auto p-4 sm:p-6 pb-24 sm:pb-6">
+      <main className="max-w-7xl mx-auto p-4 sm:p-6 pb-24 sm:pb-6" data-tour="jobs-list">
         <Section
           title={filter === 'active' ? 'Active jobs' : filter === 'finalized' ? 'Finalized' : filter === 'paid' ? 'Paid · Closed' : 'All jobs'}
           description="Tap a job to continue documenting."
@@ -51,7 +51,7 @@ export default function JobList() {
               <FilterTab current={filter} value="finalized" onClick={setFilter}>Finalized</FilterTab>
               <FilterTab current={filter} value="paid"      onClick={setFilter}>Paid</FilterTab>
               <FilterTab current={filter} value="all"       onClick={setFilter}>All</FilterTab>
-              <Link to="/jobs/new" className="hidden sm:inline-block ml-2">
+              <Link to="/jobs/new" className="hidden sm:inline-block ml-2" data-tour="new-job-button">
                 <Button variant="accent" size="sm">+ New job</Button>
               </Link>
             </div>

@@ -30,6 +30,7 @@ import SettingsScreeningRecommendations from './screens/settings/ScreeningRecomm
 import SettingsSporeHandlerProfile from './screens/settings/SporeHandlerProfile'
 import SettingsTeam from './screens/settings/Team'
 import AcceptInvite from './screens/AcceptInvite'
+import Tutorial from './screens/Tutorial'
 import SettingsIndex from './screens/settings/SettingsIndex'
 import SettingsDryingGoals from './screens/settings/DryingGoals'
 import SettingsMeters from './screens/settings/Meters'
@@ -86,6 +87,9 @@ export default function App() {
           <Route path="/settings/screening-recommendations" element={<RequireAuth roles={['owner']}><SettingsScreeningRecommendations /></RequireAuth>} />
           <Route path="/settings/spore-handler-profile" element={<RequireAuth roles={['owner']}><SettingsSporeHandlerProfile /></RequireAuth>} />
           <Route path="/settings/team" element={<RequireAuth roles={['owner']}><SettingsTeam /></RequireAuth>} />
+
+          {/* Tutorial — available to all authenticated users */}
+          <Route path="/tutorial" element={<RequireAuth><Tutorial /></RequireAuth>} />
 
           {/* Public route — accepts invites without prior auth */}
           <Route path="/invite/:token" element={<AcceptInvite />} />

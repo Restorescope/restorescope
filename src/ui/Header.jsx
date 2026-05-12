@@ -50,9 +50,16 @@ export default function Header({ breadcrumb, title, right }) {
 
           {profile && (
             <div className="flex items-center gap-2">
+              <Link
+                to="/tutorial"
+                className="text-sm font-semibold px-3 h-9 rounded hover:bg-white/10 hidden sm:inline-flex items-center"
+              >
+                Tutorial
+              </Link>
               {profile.role === 'owner' && (
                 <Link
                   to="/settings"
+                  data-tour="settings-link"
                   className="text-sm font-semibold px-3 h-9 rounded hover:bg-white/10 hidden sm:inline-flex items-center"
                 >
                   Settings
@@ -66,6 +73,7 @@ export default function Header({ breadcrumb, title, right }) {
               </span>
               <button
                 type="button"
+                data-tour="signout-button"
                 onClick={async () => { await signOut(); navigate('/login') }}
                 className="text-sm font-semibold px-3 h-9 rounded hover:bg-white/10"
               >
