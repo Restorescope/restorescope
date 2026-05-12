@@ -1,0 +1,32 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html, body, #root {
+    height: 100%;
+  }
+  body {
+    @apply font-sans text-ink-800 bg-ink-50;
+    -webkit-tap-highlight-color: transparent;
+  }
+  /* Form controls have predictable sizing in field use */
+  input, select, textarea, button {
+    @apply text-base;
+  }
+  /* Prevent iOS zoom on focus */
+  @supports (-webkit-touch-callout: none) {
+    input, select, textarea {
+      font-size: 16px;
+    }
+  }
+}
+
+@layer components {
+  /* Yellow accent strip used on report headers and key sections */
+  .accent-strip {
+    @apply h-1 w-12 bg-brand-yellow rounded-full;
+  }
+  /* Safe-area insets for mobile bottom nav */
+  .pb-safe { padding-bottom: max(env(safe-area-inset-bottom), 0.5rem); }
+}
