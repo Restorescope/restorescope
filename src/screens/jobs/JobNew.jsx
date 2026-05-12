@@ -218,7 +218,7 @@ export default function JobForm() {
             </div>
           )}
 
-          <Card>
+          <Card data-tour="job-number">
             <CardHeader><CardTitle>Job number</CardTitle></CardHeader>
             <CardBody>
               <Input
@@ -235,7 +235,7 @@ export default function JobForm() {
             </CardBody>
           </Card>
 
-          <Card>
+          <Card data-tour="customer-block">
             <CardHeader><CardTitle>Customer</CardTitle></CardHeader>
             <CardBody className="space-y-4">
               <Input label="Customer name" required value={form.customer.name} onChange={(e) => setCust('name', e.target.value)} />
@@ -247,7 +247,7 @@ export default function JobForm() {
             </CardBody>
           </Card>
 
-          <Card>
+          <Card data-tour="job-type">
             <CardHeader><CardTitle>Job type</CardTitle></CardHeader>
             <CardBody className="space-y-2">
               <p className="text-xs text-ink-600 mb-2">
@@ -319,7 +319,7 @@ export default function JobForm() {
             </CardBody>
           </Card>
 
-          <Card>
+          <Card data-tour="loss-info">
             <CardHeader><CardTitle>Loss information</CardTitle></CardHeader>
             <CardBody className="space-y-4">
               <div className="grid sm:grid-cols-2 gap-4">
@@ -391,7 +391,7 @@ export default function JobForm() {
             <Link to={isEdit ? `/jobs/${jobId}` : '/jobs'} className="flex-1 sm:flex-none">
               <Button variant="secondary" className="w-full">Cancel</Button>
             </Link>
-            <Button type="submit" size="lg" loading={submitting} className="flex-1 sm:flex-none">
+            <Button type="submit" size="lg" loading={submitting} className="flex-1 sm:flex-none" data-tour="submit-job">
               {isEdit ? 'Save changes' : 'Create job'}
             </Button>
           </div>
