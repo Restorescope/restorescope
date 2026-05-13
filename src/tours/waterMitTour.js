@@ -67,7 +67,7 @@ export const WATER_MIT_TOUR = [
   {
     id: 'wm-dashboard',
     title: 'Job Dashboard',
-    text: "This is the home page for this job. From here you access every section — rooms, readings, equipment, photos, scope, estimates, screening, review, and report.",
+    text: "This is the home page for this job. From here you access every section — rooms, readings, equipment, photos, scope, estimates, screening, review, and report. The header has two action buttons: \"Edit info\" (fix customer details) and \"Duplicate\" (create a new job with the same customer info — useful for returning customers or multi-unit properties).",
     waitForElement: 'a[href$="/rooms"]',
   },
   {

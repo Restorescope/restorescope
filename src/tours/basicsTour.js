@@ -3,6 +3,9 @@
  *
  * Walks the user around the main areas of the app without requiring any
  * destructive actions. References real DOM elements via data-tour attributes.
+ *
+ * Keep this tour synced with new features as they're built. Last updated:
+ * adds Tutorial link, Settings → Team mention, and Duplicate job button.
  */
 export const BASICS_TOUR = [
   {
@@ -15,7 +18,7 @@ export const BASICS_TOUR = [
   {
     id: 'header',
     title: 'The header',
-    text: 'Every screen shows the same blue header. Your name and role show on the right with a sign-out button.',
+    text: 'Every screen shows the same blue header. Your name and role show on the right with a sign-out button. The header also gives you quick links to Tutorial, Settings (Owner only), and Sign out.',
     attachTo: { element: 'header', on: 'bottom' },
   },
   {
@@ -31,10 +34,25 @@ export const BASICS_TOUR = [
     attachTo: { element: '[data-tour="new-job-button"]', on: 'bottom' },
   },
   {
+    id: 'job-page-actions',
+    title: 'Inside a job: Edit info + Duplicate',
+    text: 'When you open a job, you\'ll see "Edit info" and "Duplicate" buttons in the dashboard header (Owner and PM only). "Edit info" lets you fix customer details, claim numbers, etc. "Duplicate" creates a fresh draft with the same customer pre-filled — great when the same customer calls back with a new loss or for multi-unit properties.',
+  },
+  {
+    id: 'tutorial-link',
+    title: 'Tutorials (you\'re using one now)',
+    text: "The \"Tutorial\" link in the header brings you back to this page anytime. Four tutorials cover the main workflows — basics, water mitigation, mold screening, and estimates. Phone users see a static reading version; desktop and tablet see this interactive overlay.",
+  },
+  {
     id: 'settings-link',
     title: 'Settings (Owner-only)',
-    text: 'Owners get a Settings link in the header. Settings hold editable lists used across the app — meters, equipment types, drying goals, screening recommendations, your team profile, rate catalog, etc.',
+    text: 'Owners get a Settings link in the header. Settings hold editable lists used across the app — meters, equipment types, drying goals, screening recommendations, the rate catalog, Spore & Handler profile, and the Team (invite PMs and Technicians).',
     attachTo: { element: '[data-tour="settings-link"]', on: 'bottom' },
+  },
+  {
+    id: 'team-management',
+    title: 'Team management (Owner)',
+    text: 'Settings → Team is how you invite new PMs and Technicians. The Owner creates an invite link, shares it manually (text or email), and the invitee opens it to create their account. Deactivated users can\'t sign in but their work history stays intact for the audit trail.',
   },
   {
     id: 'sign-out',

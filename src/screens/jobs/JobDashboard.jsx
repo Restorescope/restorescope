@@ -33,6 +33,9 @@ export default function JobDashboard() {
   const [qcResults, setQcResults] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
+  const [showDuplicate, setShowDuplicate] = useState(false)
+  const [duplicating, setDuplicating] = useState(false)
+  const [newJobNumber, setNewJobNumber] = useState('')
 
   useEffect(() => {
     let cancelled = false
@@ -97,6 +100,57 @@ export default function JobDashboard() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id, qcRules.data, counts])
 
+  /**
+   * duplicateJob — creates a fresh draft job with the same customer info
+   * and job-type flags. Claim/loss info, status, dates, and number reset.
+   * After successful insert, navigates to the new job's dashboard.
+   */
+  async function duplicateJob() {
+    if (!newJobNumber.trim()) {
+      setError('New job number is required.')
+      return
+    }
+    setDuplicating(true); setError(null)
+    try {
+      const payload = {
+        tenant_id: profile.tenant_id,
+        job_number: newJobNumber.trim(),
+        customer: job.customer,
+        loss_info: {
+          source_key: job.loss_info?.source_key || null,
+          category: job.loss_info?.category || null,
+          class: job.loss_info?.class || null,
+          // Reset claim-specific fields
+          claim_number: '',
+          carrier: '',
+          date_of_loss: '',
+          inspection_at: '',
+        },
+        screening_enabled: job.screening_enabled || false,
+        screening_only: job.screening_only || false,
+        status: 'active',
+      }
+      const { data, error: err } = await supabase
+        .from('jobs')
+        .insert(payload)
+        .select('id')
+        .single()
+      if (err) {
+        if (err.message?.includes('duplicate') || err.code === '23505') {
+          throw new Error(`Job number "${newJobNumber.trim()}" already exists. Try a different one.`)
+        }
+        throw err
+      }
+      // Navigate to new job
+      setShowDuplicate(false)
+      navigate(`/jobs/${data.id}`)
+    } catch (e) {
+      setError(e.message)
+    } finally {
+      setDuplicating(false)
+    }
+  }
+
   if (loading) {
     return (
       <div className="min-h-screen bg-ink-50">
@@ -153,6 +207,15 @@ export default function JobDashboard() {
               <Link to={`/jobs/${id}/edit`}>
                 <Button variant="secondary" size="sm">Edit info</Button>
               </Link>
+            )}
+            {(profile?.role === 'owner' || profile?.role === 'pm') && (
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => setShowDuplicate(true)}
+              >
+                Duplicate
+              </Button>
             )}
           </div>
         </div>
@@ -275,6 +338,59 @@ export default function JobDashboard() {
       </main>
 
       <BottomNav jobId={id} />
+
+      {/* Duplicate-job confirmation modal */}
+      {showDuplicate && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg max-w-md w-full p-4 space-y-3">
+            <h3 className="font-condensed font-bold text-brand-blue text-lg tracking-wide">
+              Duplicate this job?
+            </h3>
+            <p className="text-sm text-ink-700">
+              A new job will be created with the same customer info and job type.
+              The claim number, date of loss, and inspection date will be blank for you to fill in.
+            </p>
+            <div className="bg-ink-50 border border-ink-200 rounded p-3 text-xs text-ink-700 space-y-1">
+              <div><strong>Customer:</strong> {job.customer?.name || '—'}</div>
+              <div><strong>Address:</strong> {job.customer?.address || '—'}</div>
+              <div><strong>Phone:</strong> {job.customer?.phone || '—'}</div>
+              <div className="text-ink-500 italic mt-1">
+                {job.screening_only ? 'Mold screening only' : job.screening_enabled ? 'Water mit + screening' : 'Water mitigation only'}
+              </div>
+            </div>
+            <div>
+              <label className="block text-sm font-semibold text-ink-700 mb-1">
+                New job number <span className="text-danger">*</span>
+              </label>
+              <input
+                type="text"
+                value={newJobNumber}
+                onChange={(e) => setNewJobNumber(e.target.value)}
+                placeholder="e.g. WD-2026-0099"
+                className="w-full px-3 py-2 border border-ink-300 rounded text-sm"
+                autoFocus
+              />
+              <p className="text-xs text-ink-500 mt-1">Must be unique.</p>
+            </div>
+            {error && (
+              <div role="alert" className="bg-red-50 border border-red-200 text-danger rounded p-2 text-xs">
+                {error}
+              </div>
+            )}
+            <div className="flex justify-end gap-2 pt-1">
+              <Button
+                variant="ghost"
+                onClick={() => { setShowDuplicate(false); setNewJobNumber(''); setError(null) }}
+              >
+                Cancel
+              </Button>
+              <Button onClick={duplicateJob} loading={duplicating}>
+                Create duplicate
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
