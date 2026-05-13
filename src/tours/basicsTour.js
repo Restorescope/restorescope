@@ -24,7 +24,7 @@ export const BASICS_TOUR = [
   {
     id: 'jobs-area',
     title: 'Jobs list',
-    text: 'This is where every active job lives. Tap a job card to open it. The filter tabs let you switch between active, finalized, and paid jobs.',
+    text: 'This is where every active job lives. Tap a job card to open it. The filter tabs switch between Active, Finalized, Paid, Archived, and All. The search box at the top filters by customer name, address, phone, or job number — useful as your job list grows.',
     attachTo: { element: '[data-tour="jobs-list"]', on: 'top' },
   },
   {
@@ -35,8 +35,8 @@ export const BASICS_TOUR = [
   },
   {
     id: 'job-page-actions',
-    title: 'Inside a job: Edit info + Duplicate',
-    text: 'When you open a job, you\'ll see "Edit info" and "Duplicate" buttons in the dashboard header (Owner and PM only). "Edit info" lets you fix customer details, claim numbers, etc. "Duplicate" creates a fresh draft with the same customer pre-filled — great when the same customer calls back with a new loss or for multi-unit properties.',
+    title: 'Inside a job: Edit · Duplicate · Archive · Delete',
+    text: 'When you open a job, four buttons sit in the dashboard header: "Edit info" fixes customer details. "Duplicate" creates a fresh draft with the same customer pre-filled — great when the same customer calls back or for multi-unit properties. "Archive" hides finished/paid jobs from your active view (reversible, data preserved). "Delete" (Owner only, red button) is for jobs that never should have existed — customer backed out, test jobs, duplicates — and requires typing the job number to confirm.',
   },
   {
     id: 'tutorial-link',

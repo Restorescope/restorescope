@@ -36,6 +36,11 @@ export default function JobDashboard() {
   const [showDuplicate, setShowDuplicate] = useState(false)
   const [duplicating, setDuplicating] = useState(false)
   const [newJobNumber, setNewJobNumber] = useState('')
+  const [showArchive, setShowArchive] = useState(false)
+  const [archiving, setArchiving] = useState(false)
+  const [showDelete, setShowDelete] = useState(false)
+  const [deleting, setDeleting] = useState(false)
+  const [deleteConfirmInput, setDeleteConfirmInput] = useState('')
 
   useEffect(() => {
     let cancelled = false
@@ -43,7 +48,7 @@ export default function JobDashboard() {
       setLoading(true); setError(null)
       const { data: j, error: jErr } = await supabase
         .from('jobs')
-        .select('id, job_number, customer, loss_info, status, created_at, updated_at, finalized_at, paid_at')
+        .select('id, job_number, customer, loss_info, status, created_at, updated_at, finalized_at, paid_at, archived_at, deleted_at, screening_enabled, screening_only')
         .eq('id', id)
         .maybeSingle()
       if (cancelled) return
@@ -151,6 +156,60 @@ export default function JobDashboard() {
     }
   }
 
+  /**
+   * archiveJob — marks the job as archived. Reversible from the archived
+   * filter on the jobs list. Doesn't delete any data — just hides from
+   * default views. Both Owner and PM can run this.
+   */
+  async function archiveJob() {
+    setArchiving(true); setError(null)
+    try {
+      const { error: err } = await supabase
+        .from('jobs')
+        .update({
+          archived_at: new Date().toISOString(),
+          archived_by: profile.id,
+        })
+        .eq('id', id)
+      if (err) throw err
+      setShowArchive(false)
+      navigate('/jobs')
+    } catch (e) {
+      setError(e.message)
+    } finally {
+      setArchiving(false)
+    }
+  }
+
+  /**
+   * deleteJob — Owner-only. Marks the job as deleted (soft delete). Customer
+   * must type the job number to confirm; this prevents accidental deletion.
+   * Data is preserved in the DB but excluded from all UI views.
+   */
+  async function deleteJob() {
+    if (deleteConfirmInput.trim() !== job.job_number) {
+      setError(`To confirm deletion, type the job number exactly: ${job.job_number}`)
+      return
+    }
+    setDeleting(true); setError(null)
+    try {
+      const { error: err } = await supabase
+        .from('jobs')
+        .update({
+          deleted_at: new Date().toISOString(),
+          deleted_by: profile.id,
+        })
+        .eq('id', id)
+      if (err) throw err
+      setShowDelete(false)
+      navigate('/jobs')
+    } catch (e) {
+      setError(e.message)
+    } finally {
+      setDeleting(false)
+    }
+  }
+
   if (loading) {
     return (
       <div className="min-h-screen bg-ink-50">
@@ -190,6 +249,35 @@ export default function JobDashboard() {
 
       <main className="max-w-5xl mx-auto p-4 sm:p-6 pb-24 sm:pb-6">
 
+        {/* Archived banner */}
+        {job.archived_at && (
+          <div className="bg-amber-50 border border-amber-200 rounded p-3 mb-4 flex items-start gap-3 flex-wrap">
+            <div className="flex-1 min-w-[200px]">
+              <p className="font-semibold text-amber-900 text-sm">📦 This job is archived</p>
+              <p className="text-xs text-amber-800 mt-0.5">
+                Archived on {new Date(job.archived_at).toLocaleDateString()}. Hidden from the active jobs list, but all data is preserved.
+              </p>
+            </div>
+            {(profile?.role === 'owner' || profile?.role === 'pm') && (
+              <Button
+                size="sm"
+                variant="secondary"
+                onClick={async () => {
+                  setError(null)
+                  const { error: err } = await supabase
+                    .from('jobs')
+                    .update({ archived_at: null, archived_by: null })
+                    .eq('id', id)
+                  if (err) setError(err.message)
+                  else window.location.reload()
+                }}
+              >
+                Reactivate
+              </Button>
+            )}
+          </div>
+        )}
+
         {/* Page hero */}
         <div className="flex justify-between items-start gap-3 mb-1">
           <div>
@@ -201,7 +289,7 @@ export default function JobDashboard() {
               {customer.phone && <span className="ml-2">· {customer.phone}</span>}
             </p>
           </div>
-          <div className="flex items-center gap-2 shrink-0">
+          <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end">
             <StatusPill status={job.status} />
             {(profile?.role === 'owner' || profile?.role === 'pm') && (
               <Link to={`/jobs/${id}/edit`}>
@@ -215,6 +303,24 @@ export default function JobDashboard() {
                 onClick={() => setShowDuplicate(true)}
               >
                 Duplicate
+              </Button>
+            )}
+            {(profile?.role === 'owner' || profile?.role === 'pm') && (
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => setShowArchive(true)}
+              >
+                Archive
+              </Button>
+            )}
+            {profile?.role === 'owner' && (
+              <Button
+                size="sm"
+                onClick={() => setShowDelete(true)}
+                className="!bg-red-600 hover:!bg-red-700 !text-white !border-red-600"
+              >
+                Delete
               </Button>
             )}
           </div>
@@ -386,6 +492,96 @@ export default function JobDashboard() {
               </Button>
               <Button onClick={duplicateJob} loading={duplicating}>
                 Create duplicate
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Archive confirmation modal */}
+      {showArchive && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg max-w-md w-full p-4 space-y-3">
+            <h3 className="font-condensed font-bold text-brand-blue text-lg tracking-wide">
+              Archive this job?
+            </h3>
+            <p className="text-sm text-ink-700">
+              Archive removes this job from your active jobs list so it doesn't clutter your view.
+              All data is preserved — you can find it later under the <strong>Archived</strong> filter
+              tab and reactivate it anytime.
+            </p>
+            <div className="bg-ink-50 border border-ink-200 rounded p-3 text-xs text-ink-700 space-y-1">
+              <div><strong>Job:</strong> {job.job_number}</div>
+              <div><strong>Customer:</strong> {job.customer?.name || '—'}</div>
+              <div><strong>Status:</strong> {job.status}</div>
+            </div>
+            {error && (
+              <div role="alert" className="bg-red-50 border border-red-200 text-danger rounded p-2 text-xs">
+                {error}
+              </div>
+            )}
+            <div className="flex justify-end gap-2 pt-1">
+              <Button variant="ghost" onClick={() => { setShowArchive(false); setError(null) }}>
+                Cancel
+              </Button>
+              <Button onClick={archiveJob} loading={archiving}>
+                Archive job
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete confirmation modal (Owner-only) */}
+      {showDelete && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg max-w-md w-full p-4 space-y-3 border-2 border-red-200">
+            <h3 className="font-condensed font-bold text-red-700 text-lg tracking-wide">
+              ⚠ Permanently delete this job?
+            </h3>
+            <p className="text-sm text-ink-800">
+              This removes the job from view as if it never existed. Use this for jobs that
+              shouldn't have been created — customer backed out, test jobs, duplicates.
+            </p>
+            <p className="text-sm text-ink-700">
+              <strong>For finished jobs you just want to clear from view, use Archive instead.</strong>
+            </p>
+            <div className="bg-red-50 border border-red-200 rounded p-3 text-xs text-red-900 space-y-1">
+              <div><strong>Job:</strong> {job.job_number}</div>
+              <div><strong>Customer:</strong> {job.customer?.name || '—'}</div>
+              <div><strong>Status:</strong> {job.status}</div>
+            </div>
+            <div>
+              <label className="block text-sm font-semibold text-ink-800 mb-1">
+                To confirm, type the job number: <span className="font-mono text-red-700">{job.job_number}</span>
+              </label>
+              <input
+                type="text"
+                value={deleteConfirmInput}
+                onChange={(e) => setDeleteConfirmInput(e.target.value)}
+                placeholder={job.job_number}
+                className="w-full px-3 py-2 border border-red-300 rounded text-sm font-mono"
+                autoFocus
+              />
+            </div>
+            {error && (
+              <div role="alert" className="bg-red-50 border border-red-200 text-danger rounded p-2 text-xs">
+                {error}
+              </div>
+            )}
+            <div className="flex justify-end gap-2 pt-1">
+              <Button variant="ghost" onClick={() => {
+                setShowDelete(false); setDeleteConfirmInput(''); setError(null)
+              }}>
+                Cancel
+              </Button>
+              <Button
+                onClick={deleteJob}
+                loading={deleting}
+                disabled={deleteConfirmInput.trim() !== job.job_number}
+                className="!bg-red-600 hover:!bg-red-700 !text-white"
+              >
+                Delete permanently
               </Button>
             </div>
           </div>
