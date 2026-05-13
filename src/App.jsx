@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider } from './lib/auth.jsx'
+import { BrandingProvider } from './lib/branding.jsx'
 import RequireAuth from './components/RequireAuth'
 
 import Login from './screens/auth/Login'
@@ -29,6 +30,7 @@ import ScreeningReportPDF from './screens/screening/ScreeningReportPDF'
 import SettingsScreeningRecommendations from './screens/settings/ScreeningRecommendations'
 import SettingsSporeHandlerProfile from './screens/settings/SporeHandlerProfile'
 import SettingsTeam from './screens/settings/Team'
+import SettingsBranding from './screens/settings/Branding'
 import AcceptInvite from './screens/AcceptInvite'
 import Tutorial from './screens/Tutorial'
 import TutorialStatic from './screens/TutorialStatic'
@@ -44,7 +46,8 @@ import ComingSoon from './screens/ComingSoon'
 export default function App() {
   return (
     <AuthProvider>
-      <BrowserRouter>
+      <BrandingProvider>
+        <BrowserRouter>
         <Routes>
           <Route path="/login" element={<Login />} />
           <Route path="/signup" element={<Signup />} />
@@ -88,6 +91,7 @@ export default function App() {
           <Route path="/settings/screening-recommendations" element={<RequireAuth roles={['owner']}><SettingsScreeningRecommendations /></RequireAuth>} />
           <Route path="/settings/spore-handler-profile" element={<RequireAuth roles={['owner']}><SettingsSporeHandlerProfile /></RequireAuth>} />
           <Route path="/settings/team" element={<RequireAuth roles={['owner']}><SettingsTeam /></RequireAuth>} />
+          <Route path="/settings/branding" element={<RequireAuth roles={['owner']}><SettingsBranding /></RequireAuth>} />
 
           {/* Tutorial — available to all authenticated users */}
           <Route path="/tutorial" element={<RequireAuth><Tutorial /></RequireAuth>} />
@@ -96,11 +100,11 @@ export default function App() {
           {/* Public route — accepts invites without prior auth */}
           <Route path="/invite/:token" element={<AcceptInvite />} />
           <Route path="/settings/team"   element={<RequireAuth roles={['owner']}><ComingSoon title="Team" /></RequireAuth>} />
-          <Route path="/settings/branding"       element={<RequireAuth roles={['owner']}><ComingSoon title="Branding" /></RequireAuth>} />
 
           <Route path="*" element={<Navigate to="/jobs" replace />} />
         </Routes>
       </BrowserRouter>
+      </BrandingProvider>
     </AuthProvider>
   )
 }

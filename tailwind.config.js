@@ -1,18 +1,26 @@
 /** @type {import('tailwindcss').Config} */
+//
+// Brand colors are sourced from CSS variables (--brand-blue, --brand-yellow,
+// etc.) instead of hardcoded hex. The variables are set on :root by the
+// BrandingProvider at app startup based on the tenant's branding settings
+// in the database. If no overrides exist, the defaults in src/index.css
+// (1-800 WATER DAMAGE of North Dakota colors) are used.
+//
+// This lets the Owner change brand colors from Settings → Branding without
+// needing a code change or rebuild.
+//
 export default {
   content: ['./index.html', './src/**/*.{js,jsx}'],
   theme: {
     extend: {
       colors: {
-        // 1-800 WATER DAMAGE of North Dakota brand colors
         brand: {
-          blue: '#0061AF',         // Primary
-          'blue-dark': '#004A85',
-          'blue-light': '#3389C7',
-          yellow: '#FFF200',       // Accent
-          'yellow-dark': '#E6D900',
+          blue:         'var(--brand-blue, #0061AF)',
+          'blue-dark':  'var(--brand-blue-dark, #004A85)',
+          'blue-light': 'var(--brand-blue-light, #3389C7)',
+          yellow:       'var(--brand-yellow, #FFF200)',
+          'yellow-dark':'var(--brand-yellow-dark, #E6D900)',
         },
-        // Semantic UI
         ink: {
           900: '#0F172A',
           800: '#1E293B',

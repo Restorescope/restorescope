@@ -2,6 +2,22 @@
 @tailwind components;
 @tailwind utilities;
 
+/*
+ * Brand color CSS variables. Defaults match the original 1-800 WATER DAMAGE
+ * of North Dakota brand. BrandingProvider overrides these at runtime based
+ * on the tenant's Settings → Branding choices.
+ *
+ * Changing :root variables here changes the default fallback only; the
+ * runtime values come from BrandingProvider.
+ */
+:root {
+  --brand-blue:        #0061AF;
+  --brand-blue-dark:   #004A85;
+  --brand-blue-light:  #3389C7;
+  --brand-yellow:      #FFF200;
+  --brand-yellow-dark: #E6D900;
+}
+
 @layer base {
   html, body, #root {
     height: 100%;
