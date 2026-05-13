@@ -155,9 +155,15 @@ export const WATER_MIT_TOUR = [
   {
     id: 'wm-photos-tile',
     title: 'Step 6: Photos',
-    text: 'Back at the dashboard, tap "Photos". Categorize every photo — initial condition, equipment, readings, completion. Photos appear in the final report grouped by category.',
+    text: 'Back at the dashboard, tap "Photos". Categorize every photo — initial condition, equipment, readings, completion. Photos appear in the final report grouped by category. New: if you have uncategorized photos, an "AI categorize" button appears that auto-classifies them in seconds.',
     attachTo: { element: 'a[href$="/photos"]', on: 'bottom' },
     waitForElement: 'a[href$="/photos"]',
+  },
+  {
+    id: 'wm-voice-notes',
+    title: '🎙️ Voice notes (any step)',
+    text: 'New in Phase 2: any time during the job, tap the Voice Notes tile to record hands-free observations. AI transcribes your audio and pulls out structured details (materials, readings, observations). Great for field techs whose hands are busy.',
+    attachTo: { element: 'a[href$="/voice-notes"]', on: 'bottom' },
   },
 
   // -----------------------------------------------------------------------

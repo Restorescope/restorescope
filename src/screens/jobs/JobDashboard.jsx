@@ -410,6 +410,11 @@ export default function JobDashboard() {
               subtitle={photosSubtitle(counts.photos, extras.photoCategoryCount)}
             />
             <SectionTile
+              to={`/jobs/${id}/voice-notes`}
+              title="🎙️ Voice notes"
+              subtitle="Hands-free note capture with AI transcription"
+            />
+            <SectionTile
               to={`/jobs/${id}/scope`}
               title="Scope"
               count={counts.scope}

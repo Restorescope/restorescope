@@ -11,6 +11,7 @@ import JobDashboard from './screens/jobs/JobDashboard'
 import RoomsList from './screens/jobs/RoomsList'
 import RoomDetail from './screens/jobs/RoomDetail'
 import PhotosScreen from './screens/jobs/Photos'
+import VoiceNotesScreen from './screens/jobs/VoiceNotes'
 import ReadingsScreen from './screens/jobs/Readings'
 import EquipmentScreen from './screens/jobs/Equipment'
 import MonitoringScreen from './screens/jobs/Monitoring'
@@ -64,6 +65,7 @@ export default function App() {
           <Route path="/jobs/:id/equipment"  element={<RequireAuth><EquipmentScreen /></RequireAuth>} />
           <Route path="/jobs/:id/monitoring" element={<RequireAuth><MonitoringScreen /></RequireAuth>} />
           <Route path="/jobs/:id/photos"     element={<RequireAuth><PhotosScreen /></RequireAuth>} />
+          <Route path="/jobs/:id/voice-notes" element={<RequireAuth><VoiceNotesScreen /></RequireAuth>} />
           <Route path="/jobs/:id/scope"      element={<RequireAuth><ScopeScreen /></RequireAuth>} />
           <Route path="/jobs/:id/review"     element={<RequireAuth><ReviewScreen /></RequireAuth>} />
           <Route path="/jobs/:id/report"     element={<RequireAuth><ReportScreen /></RequireAuth>} />
