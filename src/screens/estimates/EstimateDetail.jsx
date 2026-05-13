@@ -253,12 +253,12 @@ export default function EstimateDetail() {
               <Badge tone="green">✓ Signed by customer</Badge>
             )}
             {canEdit && !estimate.customer_signed_at && (
-              <Link to={`/jobs/${jobId}/estimates/${estimateId}/sign`}>
+              <Link to={`/jobs/${jobId}/estimates/${estimateId}/sign`} data-tour="estimate-sign">
                 <Button variant="accent" size="sm">Sign for acceptance</Button>
               </Link>
             )}
             {canEdit && (
-              <Button onClick={generatePDF} variant="accent" size="sm">
+              <Button onClick={generatePDF} variant="accent" size="sm" data-tour="estimate-pdf">
                 Generate PDF
               </Button>
             )}
@@ -266,7 +266,7 @@ export default function EstimateDetail() {
         </div>
 
         {/* Tab strip */}
-        <div className="flex gap-1 border-b border-ink-200">
+        <div className="flex gap-1 border-b border-ink-200" data-tour="estimate-tabs">
           <TabButton active={tab === 'info'}  onClick={() => setTab('info')}>Job Info</TabButton>
           <TabButton active={tab === 'build'} onClick={() => setTab('build')}>Build Estimate</TabButton>
           <TabButton active={tab === 'review'} onClick={() => setTab('review')}>Review</TabButton>
@@ -400,7 +400,7 @@ function BuildTab({
   return (
     <div className="grid lg:grid-cols-2 gap-4">
       {/* Catalog */}
-      <Card>
+      <Card data-tour="estimate-catalog">
         <CardHeader>
           <CardTitle>Catalog ({catalog.length})</CardTitle>
           <p className="text-xs text-ink-500 mt-1">Tap any item to add it to the estimate.</p>
@@ -461,7 +461,7 @@ function BuildTab({
       </Card>
 
       {/* Estimate lines + totals */}
-      <Card>
+      <Card data-tour="estimate-lines">
         <CardHeader>
           <CardTitle>Estimate lines ({lines.length})</CardTitle>
         </CardHeader>

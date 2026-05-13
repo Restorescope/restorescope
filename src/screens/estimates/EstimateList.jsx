@@ -108,7 +108,7 @@ export default function EstimateList() {
           title="NTE estimates"
           description="Not-to-Exceed estimates for this job. Multiple versions allowed; the latest is shown first."
           action={canEdit && (
-            <Button onClick={createNew} loading={creating} variant="accent">
+            <Button onClick={createNew} loading={creating} variant="accent" data-tour="new-estimate-button">
               + New estimate
             </Button>
           )}

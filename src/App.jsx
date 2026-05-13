@@ -31,6 +31,7 @@ import SettingsSporeHandlerProfile from './screens/settings/SporeHandlerProfile'
 import SettingsTeam from './screens/settings/Team'
 import AcceptInvite from './screens/AcceptInvite'
 import Tutorial from './screens/Tutorial'
+import TutorialStatic from './screens/TutorialStatic'
 import SettingsIndex from './screens/settings/SettingsIndex'
 import SettingsDryingGoals from './screens/settings/DryingGoals'
 import SettingsMeters from './screens/settings/Meters'
@@ -90,6 +91,7 @@ export default function App() {
 
           {/* Tutorial — available to all authenticated users */}
           <Route path="/tutorial" element={<RequireAuth><Tutorial /></RequireAuth>} />
+          <Route path="/tutorial/read/:tourId" element={<RequireAuth><TutorialStatic /></RequireAuth>} />
 
           {/* Public route — accepts invites without prior auth */}
           <Route path="/invite/:token" element={<AcceptInvite />} />
