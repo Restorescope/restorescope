@@ -212,11 +212,18 @@ function ScreeningDocument({ snapshot }) {
       {/* 1. Cover */}
       <CoverPage snapshot={snapshot} />
 
-      {/* 2. Intake summary + 3. Findings */}
+      {/* 2. Intake / property history */}
       <Page size="LETTER" style={styles.page}>
         <ScreeningPageHeader {...chrome} />
         <ScreeningPageFooter {...chrome} />
         <IntakeSection snapshot={snapshot} />
+        <SummarySection snapshot={snapshot} />
+      </Page>
+
+      {/* 3. Findings */}
+      <Page size="LETTER" style={styles.page}>
+        <ScreeningPageHeader {...chrome} />
+        <ScreeningPageFooter {...chrome} />
         <FindingsSection snapshot={snapshot} />
       </Page>
 
@@ -368,13 +375,25 @@ function CoverPage({ snapshot }) {
         alignItems: 'center',
         justifyContent: 'center',
       }}>
+        {/* Photo row — main work-vest portrait + smaller bandana shot */}
         <View style={{
-          width: 110, height: 110, borderRadius: 55, overflow: 'hidden',
-          borderWidth: 3, borderColor: COLORS.brandYellow,
-          backgroundColor: COLORS.ink100, alignItems: 'center', justifyContent: 'center',
-          marginBottom: 12,
+          flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+          gap: 14, marginBottom: 12,
         }}>
-          <Image src={sporePhoto} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+          <View style={{
+            width: 110, height: 110, borderRadius: 55, overflow: 'hidden',
+            borderWidth: 3, borderColor: COLORS.brandYellow,
+            backgroundColor: COLORS.ink100,
+          }}>
+            <Image src={sporePhoto} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+          </View>
+          <View style={{
+            width: 70, height: 70, borderRadius: 35, overflow: 'hidden',
+            borderWidth: 2, borderColor: COLORS.brandBlue,
+            backgroundColor: COLORS.ink100,
+          }}>
+            <Image src="/brand/spore-bandana.png" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+          </View>
         </View>
         <Text style={{
           fontSize: 8, color: COLORS.ink500, textTransform: 'uppercase',
@@ -426,36 +445,6 @@ function CoverPage({ snapshot }) {
         </View>
 
         <View style={{ flex: 1 }} />
-
-        {/* Summary callout at bottom */}
-        <View style={{
-          backgroundColor: COLORS.brandBlue, padding: 16, borderRadius: 4, marginTop: 20,
-        }}>
-          <Text style={{
-            fontFamily: 'Helvetica-Bold', fontSize: 11, color: COLORS.brandYellow,
-            letterSpacing: 1.5, marginBottom: 4,
-          }}>SCREENING SUMMARY</Text>
-          <View style={{ flexDirection: 'row', gap: 18 }}>
-            <View>
-              <Text style={{ fontSize: 8, color: COLORS.white, opacity: 0.85, textTransform: 'uppercase', letterSpacing: 0.5 }}>Positive alerts</Text>
-              <Text style={{ fontFamily: 'Helvetica-Bold', fontSize: 22, color: COLORS.brandYellow }}>
-                {snapshot.positiveAlerts.length}
-              </Text>
-            </View>
-            <View>
-              <Text style={{ fontSize: 8, color: COLORS.white, opacity: 0.85, textTransform: 'uppercase', letterSpacing: 0.5 }}>Lab samples</Text>
-              <Text style={{ fontFamily: 'Helvetica-Bold', fontSize: 22, color: COLORS.brandYellow }}>
-                {snapshot.samples.length}
-              </Text>
-            </View>
-            <View>
-              <Text style={{ fontSize: 8, color: COLORS.white, opacity: 0.85, textTransform: 'uppercase', letterSpacing: 0.5 }}>Rooms inspected</Text>
-              <Text style={{ fontFamily: 'Helvetica-Bold', fontSize: 22, color: COLORS.brandYellow }}>
-                {snapshot.alertsByRoom.size || snapshot.rooms.length}
-              </Text>
-            </View>
-          </View>
-        </View>
       </View>
     </Page>
   )
@@ -534,6 +523,60 @@ function IntakeSection({ snapshot }) {
           <Text style={styles.para}>{insp.visual_inspection_notes}</Text>
         </>
       )}
+    </View>
+  )
+}
+
+// ============================================================================
+// Screening summary — 3-stat card layout
+// ============================================================================
+function SummarySection({ snapshot }) {
+  const positives = snapshot.positiveAlerts.length
+  const samples   = snapshot.samples.length
+  const rooms     = snapshot.alertsByRoom.size || snapshot.rooms.length
+
+  const positivesSub = snapshot.alertsByRoom.size > 0
+    ? `across ${snapshot.alertsByRoom.size} room${snapshot.alertsByRoom.size === 1 ? '' : 's'}`
+    : 'no alerts recorded'
+  const samplesSub = samples > 0 ? 'sent for analysis' : 'none collected'
+  const roomsSub   = 'in scope'
+
+  return (
+    <View style={{ marginTop: 14, marginBottom: 6 }} wrap={false}>
+      <Text style={[styles.sectionHeading, { marginBottom: 8 }]}>SCREENING SUMMARY</Text>
+      <View style={{ flexDirection: 'row', gap: 8 }}>
+        <StatCard label="POSITIVE ALERTS" value={positives} sub={positivesSub} />
+        <StatCard label="LAB SAMPLES"     value={samples}   sub={samplesSub}   />
+        <StatCard label="ROOMS INSPECTED" value={rooms}     sub={roomsSub}     />
+      </View>
+    </View>
+  )
+}
+
+function StatCard({ label, value, sub }) {
+  return (
+    <View style={{
+      flex: 1,
+      borderWidth: 1, borderColor: COLORS.brandBlue,
+      borderRadius: 3,
+      backgroundColor: COLORS.white,
+    }}>
+      {/* Top blue accent strip */}
+      <View style={{ height: 6, backgroundColor: COLORS.brandBlue }} />
+      <View style={{ padding: 10, alignItems: 'center' }}>
+        <Text style={{
+          fontFamily: 'Helvetica', fontSize: 8, color: COLORS.ink600,
+          letterSpacing: 0.5, marginBottom: 4, textAlign: 'center',
+        }}>{label}</Text>
+        <Text style={{
+          fontFamily: 'Helvetica-Bold', fontSize: 36, color: COLORS.brandBlue,
+          textAlign: 'center', marginBottom: 2,
+        }}>{value}</Text>
+        <Text style={{
+          fontFamily: 'Helvetica', fontSize: 8, color: COLORS.ink600,
+          textAlign: 'center',
+        }}>{sub}</Text>
+      </View>
     </View>
   )
 }
@@ -730,13 +773,35 @@ function SporeCredentialPage({ snapshot }) {
     <View>
       <Text style={[styles.sectionHeading, styles.sectionHeadingFirst]}>YOUR MOLD DETECTION CANINE</Text>
 
-      <View style={{ flexDirection: 'row', gap: 18, marginTop: 8 }}>
-        <View style={{
-          width: 130, height: 130, borderRadius: 8, overflow: 'hidden',
-          borderWidth: 2, borderColor: COLORS.brandYellow,
-          backgroundColor: COLORS.ink100,
-        }}>
-          <Image src={photoPath} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+      <View style={{ flexDirection: 'row', gap: 14, marginTop: 8 }}>
+        {/* Stacked photo column — work vest on top, relaxing below */}
+        <View style={{ width: 130, gap: 8 }}>
+          <View style={{
+            width: 130, height: 130, borderRadius: 8, overflow: 'hidden',
+            borderWidth: 2, borderColor: COLORS.brandYellow,
+            backgroundColor: COLORS.ink100,
+          }}>
+            <Image src={photoPath} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+          </View>
+          <Text style={{
+            fontSize: 7.5, color: COLORS.ink500, textTransform: 'uppercase',
+            letterSpacing: 0.5, textAlign: 'center', marginTop: -4,
+          }}>
+            On duty
+          </Text>
+          <View style={{
+            width: 130, height: 130, borderRadius: 8, overflow: 'hidden',
+            borderWidth: 2, borderColor: COLORS.brandBlue,
+            backgroundColor: COLORS.ink100,
+          }}>
+            <Image src="/brand/spore-relaxing.png" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+          </View>
+          <Text style={{
+            fontSize: 7.5, color: COLORS.ink500, textTransform: 'uppercase',
+            letterSpacing: 0.5, textAlign: 'center', marginTop: -4,
+          }}>
+            Off the clock
+          </Text>
         </View>
 
         <View style={{ flex: 1 }}>
@@ -938,68 +1003,55 @@ function DisclaimerPage({ snapshot }) {
       <Text style={[styles.sectionHeading, styles.sectionHeadingFirst]}>LIMITATIONS &amp; DISCLAIMER</Text>
 
       <Text style={styles.subHeading}>About canine mold detection</Text>
-      <Text style={styles.para}>
-        Canine scent detection is a presumptive screening method. A canine alert indicates that
-        the dog has detected the scent of compounds associated with mold growth at that location.
-        It does NOT, by itself, confirm:
+      <Text style={[styles.para, { marginBottom: 4 }]}>
+        Canine scent detection is a presumptive screening method. A canine alert indicates the
+        dog has detected compounds associated with mold growth at that location. It does NOT,
+        by itself, confirm:
       </Text>
-      <View style={{ paddingLeft: 6 }}>
-        <Text style={{ fontSize: 10, color: COLORS.ink800, marginBottom: 2 }}>• The species of mold present</Text>
-        <Text style={{ fontSize: 10, color: COLORS.ink800, marginBottom: 2 }}>• The concentration of mold spores</Text>
-        <Text style={{ fontSize: 10, color: COLORS.ink800, marginBottom: 2 }}>• Whether the mold poses a health risk</Text>
-        <Text style={{ fontSize: 10, color: COLORS.ink800, marginBottom: 2 }}>• The extent of contamination beyond the alert location</Text>
+      <View style={{ paddingLeft: 6, marginBottom: 6 }}>
+        <Text style={{ fontSize: 9.5, color: COLORS.ink800, marginBottom: 1 }}>• The species of mold present</Text>
+        <Text style={{ fontSize: 9.5, color: COLORS.ink800, marginBottom: 1 }}>• The concentration of mold spores</Text>
+        <Text style={{ fontSize: 9.5, color: COLORS.ink800, marginBottom: 1 }}>• Whether the mold poses a health risk</Text>
+        <Text style={{ fontSize: 9.5, color: COLORS.ink800, marginBottom: 1 }}>• The extent of contamination beyond the alert location</Text>
       </View>
 
       <Text style={styles.subHeading}>Sampling and laboratory confirmation</Text>
-      <Text style={styles.para}>
+      <Text style={[styles.para, { marginBottom: 6 }]}>
         Laboratory analysis of air, surface, or bulk samples is the recognized standard for
         confirming mold presence, identifying species, and quantifying concentrations. The
-        canine handler will recommend laboratory sampling at any location where confirmation
-        is warranted.
+        canine handler will recommend laboratory sampling where confirmation is warranted.
       </Text>
 
       <Text style={styles.subHeading}>Scope and inspection limits</Text>
-      <Text style={styles.para}>
-        This screening was limited to the areas and conditions agreed upon prior to the
-        inspection. Areas not accessible (locked rooms, crawlspaces, sealed cavities, areas
-        with obstructions) cannot be screened. Absence of an alert in an area does not
-        guarantee that no mold is present — it indicates only that the canine did not detect
-        scent compounds at the levels and locations tested.
+      <Text style={[styles.para, { marginBottom: 6 }]}>
+        Screening was limited to the areas and conditions agreed upon prior to the inspection.
+        Areas not accessible (locked rooms, crawlspaces, sealed cavities) cannot be screened.
+        Absence of an alert does not guarantee no mold is present.
       </Text>
 
       <Text style={styles.subHeading}>Industry standards</Text>
-      <Text style={styles.para}>
-        This screening was conducted with reference to:
-      </Text>
+      <Text style={[styles.para, { marginBottom: 4 }]}>This screening was conducted with reference to:</Text>
       <View style={{ paddingLeft: 6, marginBottom: 6 }}>
-        <Text style={{ fontSize: 10, color: COLORS.ink800, marginBottom: 2 }}>
+        <Text style={{ fontSize: 9.5, color: COLORS.ink800, marginBottom: 1 }}>
           • IICRC S520 — Standard for Professional Mold Remediation
         </Text>
-        <Text style={{ fontSize: 10, color: COLORS.ink800, marginBottom: 2 }}>
+        <Text style={{ fontSize: 9.5, color: COLORS.ink800, marginBottom: 1 }}>
           • IICRC S500 — Standard for Professional Water Damage Restoration
         </Text>
       </View>
 
-      <Text style={styles.subHeading}>Liability</Text>
-      <Text style={styles.para}>
-        This report represents the canine handler's professional observations and findings
-        from the screening, supplemented by laboratory data where applicable. It is intended
-        for the customer's informational use in evaluating possible mold concerns. It does not
-        constitute a guarantee or warranty against future mold growth, nor a substitute for
-        professional remediation services or medical advice. Decisions about further
-        investigation, remediation, or medical consultation are the responsibility of the
-        property owner and qualified professionals they engage.
-      </Text>
-
-      <Text style={styles.subHeading}>Report ownership</Text>
-      <Text style={styles.para}>
-        This report is prepared for the customer named on the cover page and is intended for
-        their use and the use of parties they authorize. The report may not be reproduced or
-        distributed except in its entirety.
+      <Text style={styles.subHeading}>Liability &amp; report ownership</Text>
+      <Text style={[styles.para, { marginBottom: 6 }]}>
+        This report represents the canine handler's professional observations and findings,
+        supplemented by laboratory data where applicable. It is intended for the customer's
+        informational use and does not constitute a guarantee against future mold growth or a
+        substitute for professional remediation or medical advice. The report is prepared for
+        the customer named on the cover page and may not be reproduced or distributed except
+        in its entirety.
       </Text>
 
       <View style={{
-        marginTop: 20, padding: 10, backgroundColor: COLORS.ink50,
+        marginTop: 10, padding: 8, backgroundColor: COLORS.ink50,
         borderWidth: 0.5, borderColor: COLORS.ink300, borderRadius: 3,
       }}>
         <Text style={{ fontSize: 9, color: COLORS.ink700, textAlign: 'center' }}>
