@@ -79,8 +79,37 @@ serve(async (req) => {
       promptParts.push("Intake context:")
       if (intake.reason_for_screening) promptParts.push(`- Reason for screening: ${intake.reason_for_screening}`)
       if (intake.customer_concerns)    promptParts.push(`- Customer concerns: ${intake.customer_concerns}`)
-      if (intake.reported_history)     promptParts.push(`- Property history: ${intake.reported_history}`)
+      if (intake.reported_history)     promptParts.push(`- Reported history (free text): ${intake.reported_history}`)
       if (intake.scope)                promptParts.push(`- Inspection scope: ${intake.scope}`)
+      // Render structured property history if present
+      if (intake.property_history) {
+        const ph = intake.property_history
+        const flags = []
+        if (ph.year_built)          flags.push(`Year built: ${ph.year_built}`)
+        if (ph.construction_type)   flags.push(`Construction: ${ph.construction_type}`)
+        const categories = [
+          ['prior_water_damage',   'Prior water damage'],
+          ['exterior_issues',      'Exterior issues'],
+          ['roofing_issues',       'Roofing issues'],
+          ['grade_problems',       'Grade/drainage problems'],
+          ['foundation_issues',    'Foundation issues'],
+          ['hvac_issues',          'HVAC issues'],
+          ['plumbing_issues',      'Plumbing issues'],
+          ['ventilation_issues',   'Ventilation issues'],
+          ['previous_remediation', 'Previous mold remediation'],
+        ]
+        for (const [key, label] of categories) {
+          if (ph[key]) {
+            const notes = ph[`${key}_notes`]
+            flags.push(notes ? `${label} — ${notes}` : label)
+          }
+        }
+        if (ph.other_notes) flags.push(`Other observations: ${ph.other_notes}`)
+        if (flags.length > 0) {
+          promptParts.push(`- Structured property history:`)
+          flags.forEach(f => promptParts.push(`  • ${f}`))
+        }
+      }
       promptParts.push("")
     }
 

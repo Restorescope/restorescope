@@ -123,14 +123,34 @@ serve(async (req) => {
     }
 
     // ---- STEP 1: Transcribe with Whisper ----
-    console.log("[transcribe-voice-note] decoding audio, calling Whisper...")
+    console.log("[transcribe-voice-note] decoding audio, calling Whisper... media_type:", audio_mime_type)
 
     // Decode base64 to bytes for the multipart form
     const audioBytes = Uint8Array.from(atob(audio_base64), c => c.charCodeAt(0))
-    const audioBlob = new Blob([audioBytes], { type: audio_mime_type })
+    // Strip codec params from MIME type so the blob's type is clean
+    const cleanMime = audio_mime_type.split(';')[0].trim()
+    const audioBlob = new Blob([audioBytes], { type: cleanMime })
+
+    // Whisper accepts these extensions only — pick a clean one based on MIME
+    const EXT_BY_MIME: Record<string, string> = {
+      'audio/webm':   'webm',
+      'audio/ogg':    'ogg',
+      'audio/mp4':    'mp4',
+      'audio/mpeg':   'mp3',
+      'audio/mp3':    'mp3',
+      'audio/wav':    'wav',
+      'audio/x-wav':  'wav',
+      'audio/wave':   'wav',
+      'audio/flac':   'flac',
+      'audio/x-m4a':  'm4a',
+      'audio/m4a':    'm4a',
+      'audio/aac':    'm4a',
+    }
+    const ext = EXT_BY_MIME[cleanMime] || 'webm'
+    console.log("[transcribe-voice-note] clean mime:", cleanMime, "→ filename: note." + ext)
 
     const form = new FormData()
-    form.append('file', audioBlob, `note.${audio_mime_type.split('/')[1] || 'webm'}`)
+    form.append('file', audioBlob, `note.${ext}`)
     form.append('model', 'whisper-1')
     form.append('response_format', 'text')
 

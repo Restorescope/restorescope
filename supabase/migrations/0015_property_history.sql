@@ -1,0 +1,35 @@
+-- Migration 0015 — structured property history for mold screening
+--
+-- Adds a property_history JSONB column to screening_inspections. This is
+-- captured BEFORE walkthrough so Spore and the handler know what they're
+-- walking into. AI screening recommendations also use this context.
+--
+-- Shape (all optional, all booleans + notes):
+-- {
+--   "prior_water_damage": false,
+--   "prior_water_damage_notes": "",
+--   "exterior_issues": false,
+--   "exterior_issues_notes": "",
+--   "roofing_issues": false,
+--   "roofing_issues_notes": "",
+--   "grade_problems": false,
+--   "grade_problems_notes": "",
+--   "foundation_issues": false,
+--   "foundation_issues_notes": "",
+--   "hvac_issues": false,
+--   "hvac_issues_notes": "",
+--   "plumbing_issues": false,
+--   "plumbing_issues_notes": "",
+--   "ventilation_issues": false,
+--   "ventilation_issues_notes": "",
+--   "previous_remediation": false,
+--   "previous_remediation_notes": "",
+--   "year_built": "",            -- text not number, "approx 1990" is fine
+--   "construction_type": "",     -- "wood frame", "block", etc — free text
+--   "other_notes": ""            -- catch-all
+-- }
+--
+-- The legacy `reported_history` text field stays for backward compatibility.
+
+alter table screening_inspections
+  add column if not exists property_history jsonb;

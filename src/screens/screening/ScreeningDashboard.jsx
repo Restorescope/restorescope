@@ -188,8 +188,13 @@ export default function ScreeningDashboard() {
                 required
               />
               <StepTile
+                to={`/jobs/${jobId}/screening/property-history`}
+                title="2. Property History"
+                subtitle="Prior damage, structural issues, system concerns"
+              />
+              <StepTile
                 to={`/jobs/${jobId}/screening/walkthrough`}
-                title="2. Walkthrough"
+                title="3. Walkthrough"
                 subtitle={alertCount === 0
                   ? 'Document Spore\'s alerts room by room'
                   : `${alertCount} alert${alertCount === 1 ? '' : 's'} recorded`}
@@ -197,7 +202,7 @@ export default function ScreeningDashboard() {
               />
               <StepTile
                 to={`/jobs/${jobId}/screening/samples`}
-                title="3. Sampling"
+                title="4. Sampling"
                 subtitle={sampleCounts.pending + sampleCounts.sent + sampleCounts.received === 0
                   ? 'Optional — track air, surface, or bulk samples'
                   : `${sampleCounts.received} received · ${sampleCounts.sent} pending lab · ${sampleCounts.pending} draft`}
@@ -205,12 +210,12 @@ export default function ScreeningDashboard() {
               />
               <StepTile
                 to={`/jobs/${jobId}/screening/recommendations`}
-                title="4. Recommendations"
+                title="5. Recommendations"
                 subtitle="Quick-picks + AI-generated recommendations"
               />
               <StepTile
                 to={`/jobs/${jobId}/screening/report`}
-                title="5. Generate Report"
+                title="6. Generate Report"
                 subtitle="Branded PDF with photos, findings, recommendations"
                 accent
               />

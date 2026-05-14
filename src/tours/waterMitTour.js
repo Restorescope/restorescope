@@ -1,73 +1,56 @@
 /**
- * WATER_MIT_TOUR — interactive walkthrough of the full water mitigation
- * workflow. Walks the user from the jobs list → creating a job → adding
- * documentation → finalizing → generating the PDF.
+ * WATER_MIT_TOUR — interactive walkthrough of the water mit workflow.
  *
- * Strategy: tour highlights big sections rather than every individual field.
- * The user reads the explainer, fills in the fields on their own, clicks
- * Next when ready to advance.
+ * Rewrite goal: the tour MUST survive forms. Earlier version tried to
+ * highlight every field one-by-one, then assumed the user had created the
+ * job between two tooltips. That left the tour stuck waiting for the
+ * dashboard before the user had actually clicked "Create job".
  *
- * The tour does NOT auto-navigate or auto-submit forms — every navigation
- * happens manually by the user clicking the actual link or button the tour
- * is pointing at. This means the tour can pause at decision points and the
- * user genuinely learns by doing.
+ * New strategy:
+ *   - One tooltip per LOGICAL screen, not per field
+ *   - waitForElement is generous — accepts anything on the current screen
+ *   - "Click [the actual button] when ready" — the tour waits for the next
+ *     real element to appear, not for the user to click Next
+ *
+ * This means: the user fills out forms on their own, clicks the real
+ * buttons, and the tour catches up when the next screen mounts.
  */
 export const WATER_MIT_TOUR = [
   // -----------------------------------------------------------------------
-  // INTRO + JOB CREATION
+  // INTRO
   // -----------------------------------------------------------------------
   {
     id: 'wm-intro',
     title: 'Water mitigation workflow',
-    text: "This tour walks through a complete water mitigation job from start to finish. You'll create a real job, add rooms, take readings, set up equipment, and finalize the report. Takes about 15 minutes.",
+    text: "This tour walks through a complete water mitigation job from start to finish. You'll create a real job, add rooms, take readings, set up equipment, and finalize the report. About 15 minutes.",
     showSkip: true,
     navigateBefore: '/jobs',
   },
   {
     id: 'wm-new-job',
     title: 'Step 1: Create the job',
-    text: "Every customer interaction starts with a job. Tap the \"+ New job\" button to begin. The tour continues when you're on the new job screen.",
+    text: 'Tap the "+ New job" button to begin. The tour will pause and wait for you to land on the new job screen.',
     attachTo: { element: '[data-tour="new-job-button"]', on: 'bottom' },
-  },
-  {
-    id: 'wm-job-number',
-    title: 'Job number',
-    text: "Type a unique job number (e.g. WD-2026-0001). Use whatever numbering scheme makes sense. Once set, this is the job's permanent ID.",
-    attachTo: { element: '[data-tour="job-number"]', on: 'bottom' },
-    navigateBefore: '/jobs/new',
-  },
-  {
-    id: 'wm-customer-block',
-    title: 'Customer info',
-    text: "Fill in the customer's name, address, phone, and email. The address shows on every report.",
-    attachTo: { element: '[data-tour="customer-block"]', on: 'top' },
-  },
-  {
-    id: 'wm-job-type',
-    title: 'Job type',
-    text: 'Three options: Water mitigation only, Mold screening only, or Combo. For this tour pick "Water mitigation only".',
-    attachTo: { element: '[data-tour="job-type"]', on: 'top' },
-  },
-  {
-    id: 'wm-loss-info',
-    title: 'Loss info (water mit jobs)',
-    text: "For water mit, claim number, carrier, date of loss, category, and class are required. Drives insurance billing and IICRC documentation.",
-    attachTo: { element: '[data-tour="loss-info"]', on: 'top' },
-  },
-  {
-    id: 'wm-submit-job',
-    title: 'Create the job',
-    text: 'When the form is filled out, tap "Create job". You\'ll land on the Job Dashboard.',
-    attachTo: { element: '[data-tour="submit-job"]', on: 'top' },
   },
 
   // -----------------------------------------------------------------------
-  // JOB DASHBOARD
+  // NEW JOB FORM — single overview tooltip
+  // -----------------------------------------------------------------------
+  {
+    id: 'wm-new-job-form',
+    title: 'Fill out the new job form',
+    text: 'Take your time and fill out every section: (1) Job number, (2) Customer name and address, (3) Job type — pick "Water mitigation only" for this tour, (4) Loss info (claim, carrier, date of loss, category, class — these are REQUIRED for water mit jobs). When everything is filled, tap "Create job" at the bottom. The tour will catch up on the next screen.',
+    attachTo: { element: '[data-tour="job-number"]', on: 'bottom' },
+    waitForElement: '[data-tour="job-number"]',
+  },
+
+  // -----------------------------------------------------------------------
+  // JOB DASHBOARD — wait patiently for it to appear
   // -----------------------------------------------------------------------
   {
     id: 'wm-dashboard',
     title: 'Job Dashboard',
-    text: "This is the home page for this job. From here you access every section — rooms, readings, equipment, photos, scope, estimates, screening, review, and report. The header has two action buttons: \"Edit info\" (fix customer details) and \"Duplicate\" (create a new job with the same customer info — useful for returning customers or multi-unit properties).",
+    text: "Great — you're on the Job Dashboard. From here you access every section: rooms, readings, equipment, photos, scope, estimates, screening, review, and report. Edit info / Duplicate / Archive / Delete buttons live in the header. Voice notes have their own tile.",
     waitForElement: 'a[href$="/rooms"]',
   },
   {
@@ -79,13 +62,8 @@ export const WATER_MIT_TOUR = [
   {
     id: 'wm-rooms-screen',
     title: 'Rooms list',
-    text: 'Tap "+ Add room", pick a name. Inside the room mark materials affected (drywall, carpet, baseboard), actions performed (removed, dried, treated), and reasons (contamination, non-salvageable).',
+    text: 'Tap "+ Add room", pick a name. Inside the room mark materials affected (drywall, carpet, baseboard), actions performed (removed, dried, treated), and reasons (contamination, non-salvageable). When done, tap your job number in the breadcrumb to return to the dashboard.',
     waitForElement: 'main',
-  },
-  {
-    id: 'wm-back-to-dashboard-1',
-    title: 'Back to dashboard',
-    text: 'Once you\'ve added a room or two, navigate back to the Job Dashboard (tap the job number in the breadcrumb). Click Next when you\'re back.',
   },
 
   // -----------------------------------------------------------------------
@@ -94,20 +72,15 @@ export const WATER_MIT_TOUR = [
   {
     id: 'wm-readings-tile',
     title: 'Step 3: Moisture readings',
-    text: 'Tap "Moisture readings". This is where every meter reading is logged — initial, daily, and final.',
+    text: 'Back on the dashboard, tap "Moisture readings". This is where every meter reading is logged — initial, daily, and final.',
     attachTo: { element: 'a[href$="/readings"]', on: 'bottom' },
     waitForElement: 'a[href$="/readings"]',
   },
   {
     id: 'wm-readings-screen',
     title: 'Adding readings',
-    text: 'Tap "+ Add reading". Pick the room, material, and meter type. Enter the value. The app suggests a drying goal — you can override if needed.',
+    text: 'Tap "+ Add reading". Pick the room, material, and meter type. Enter the value. The app suggests a drying goal — you can override if needed. When done, return to the dashboard via the breadcrumb.',
     waitForElement: 'main',
-  },
-  {
-    id: 'wm-back-to-dashboard-2',
-    title: 'Back to dashboard',
-    text: 'Add a few readings, then head back to the dashboard.',
   },
 
   // -----------------------------------------------------------------------
@@ -116,7 +89,7 @@ export const WATER_MIT_TOUR = [
   {
     id: 'wm-equipment-tile',
     title: 'Step 4: Equipment',
-    text: 'Tap "Equipment". Log every piece deployed — dehumidifiers, air movers, HEPA filters. Each entry tracks asset tag, room placement, and days on site.',
+    text: 'On the dashboard, tap "Equipment". Log every piece deployed — dehumidifiers, air movers, HEPA filters. Each entry tracks asset tag, room placement, and days on site.',
     attachTo: { element: 'a[href$="/equipment"]', on: 'bottom' },
     waitForElement: 'a[href$="/equipment"]',
   },
@@ -125,11 +98,6 @@ export const WATER_MIT_TOUR = [
     title: 'Equipment logging',
     text: 'Add each piece with asset tag and location. The dashboard counts days on site and warns at 4+ days — important for insurance billing.',
     waitForElement: 'main',
-  },
-  {
-    id: 'wm-back-to-dashboard-3',
-    title: 'Back to dashboard',
-    text: 'Once equipment is logged, head back to the dashboard.',
   },
 
   // -----------------------------------------------------------------------
@@ -142,12 +110,6 @@ export const WATER_MIT_TOUR = [
     attachTo: { element: 'a[href$="/monitoring"]', on: 'bottom' },
     waitForElement: 'a[href$="/monitoring"]',
   },
-  {
-    id: 'wm-monitoring-screen',
-    title: 'Daily readings',
-    text: 'Tap "+ Add reading" each day. Record indoor temp/RH, outdoor temp/RH. The app calculates grain depression automatically.',
-    waitForElement: 'main',
-  },
 
   // -----------------------------------------------------------------------
   // PHOTOS
@@ -155,14 +117,14 @@ export const WATER_MIT_TOUR = [
   {
     id: 'wm-photos-tile',
     title: 'Step 6: Photos',
-    text: 'Back at the dashboard, tap "Photos". Categorize every photo — initial condition, equipment, readings, completion. Photos appear in the final report grouped by category. New: if you have uncategorized photos, an "AI categorize" button appears that auto-classifies them in seconds.',
+    text: 'Back at the dashboard, tap "Photos". Categorize every photo — initial condition, equipment, readings, completion. Photos appear in the final report grouped by category. AI can auto-categorize uncategorized photos when needed.',
     attachTo: { element: 'a[href$="/photos"]', on: 'bottom' },
     waitForElement: 'a[href$="/photos"]',
   },
   {
     id: 'wm-voice-notes',
     title: '🎙️ Voice notes (any step)',
-    text: 'New in Phase 2: any time during the job, tap the Voice Notes tile to record hands-free observations. AI transcribes your audio and pulls out structured details (materials, readings, observations). Great for field techs whose hands are busy.',
+    text: 'Any time during the job, tap the Voice Notes tile to record hands-free observations. AI transcribes audio and pulls out structured details (materials, readings, observations). Great for field techs whose hands are busy.',
     attachTo: { element: 'a[href$="/voice-notes"]', on: 'bottom' },
   },
 

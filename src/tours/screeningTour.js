@@ -68,12 +68,33 @@ export const SCREENING_TOUR = [
   },
 
   // -----------------------------------------------------------------------
-  // 2. WALKTHROUGH
+  // 2. PROPERTY HISTORY
+  // -----------------------------------------------------------------------
+  {
+    id: 'sc-property-history-tile',
+    title: 'Step 2: Property History',
+    text: "Tap \"2. Property History\". Document what you know about the property — prior water damage, structural issues, system concerns. This context goes into the screening report AND helps the AI recommendation engine give smarter suggestions.",
+    attachTo: { element: 'a[href*="/screening/property-history"]', on: 'bottom' },
+  },
+  {
+    id: 'sc-property-history-screen',
+    title: 'Filling out property history',
+    text: "Year built, construction type, then check each issue category that applies (prior water damage, roofing, foundation, HVAC, etc.). When you check a box, a notes field appears for specifics. Anything that doesn't fit goes in 'Other observations'. Save when done, then navigate back.",
+    waitForElement: 'main',
+  },
+  {
+    id: 'sc-back-to-screening-2',
+    title: 'Back to screening dashboard',
+    text: 'Once property history is saved, head back to the screening dashboard.',
+  },
+
+  // -----------------------------------------------------------------------
+  // 3. WALKTHROUGH
   // -----------------------------------------------------------------------
   {
     id: 'sc-walkthrough-tile',
-    title: 'Step 2: Walkthrough with Spore',
-    text: "Tap \"2. Walkthrough\". This is where you record Spore's alerts room by room as you walk the property.",
+    title: 'Step 3: Walkthrough with Spore',
+    text: "Tap \"3. Walkthrough\". This is where you record Spore's alerts room by room as you walk the property.",
     attachTo: { element: 'a[href*="/screening/walkthrough"]', on: 'bottom' },
   },
   {
@@ -89,18 +110,18 @@ export const SCREENING_TOUR = [
     waitForElement: 'main',
   },
   {
-    id: 'sc-back-to-screening-2',
+    id: 'sc-back-to-screening-3',
     title: 'Back to screening dashboard',
     text: 'Once alerts are documented, head back to the screening dashboard.',
   },
 
   // -----------------------------------------------------------------------
-  // 3. SAMPLING (optional)
+  // 4. SAMPLING (optional)
   // -----------------------------------------------------------------------
   {
     id: 'sc-samples-tile',
-    title: 'Step 3: Sampling (optional)',
-    text: "Tap \"3. Sampling\" if you collected lab samples. Track sample type (air, surface tape, swab, bulk, wall cavity air, outdoor control), lab info, chain of custody, and results when they come back.",
+    title: 'Step 4: Sampling (optional)',
+    text: "Tap \"4. Sampling\" if you collected lab samples. Track sample type (air, surface tape, swab, bulk, wall cavity air, outdoor control), lab info, chain of custody, and results when they come back.",
     attachTo: { element: 'a[href*="/screening/samples"]', on: 'bottom' },
   },
   {
@@ -110,7 +131,7 @@ export const SCREENING_TOUR = [
     waitForElement: 'main',
   },
   {
-    id: 'sc-back-to-screening-3',
+    id: 'sc-back-to-screening-4',
     title: 'Back to screening dashboard',
     text: 'When samples are logged (or if you skipped sampling), head back.',
   },
@@ -120,8 +141,8 @@ export const SCREENING_TOUR = [
   // -----------------------------------------------------------------------
   {
     id: 'sc-recs-tile',
-    title: 'Step 4: Recommendations',
-    text: 'Tap "4. Recommendations". This is where the inspector\'s professional recommendations go — what the customer should do based on findings.',
+    title: 'Step 5: Recommendations',
+    text: 'Tap "5. Recommendations". This is where the inspector\'s professional recommendations go — what the customer should do based on findings.',
     attachTo: { element: 'a[href*="/screening/recommendations"]', on: 'bottom' },
   },
   {
@@ -143,7 +164,7 @@ export const SCREENING_TOUR = [
     waitForElement: 'main',
   },
   {
-    id: 'sc-back-to-screening-4',
+    id: 'sc-back-to-screening-5',
     title: 'Back to screening dashboard',
     text: 'Save the recommendations, head back to the dashboard for the final step.',
   },
@@ -153,8 +174,8 @@ export const SCREENING_TOUR = [
   // -----------------------------------------------------------------------
   {
     id: 'sc-report-tile',
-    title: 'Step 5: Generate the report',
-    text: 'Tap "5. Generate Report" to create the branded PDF. Includes cover with Spore feature, intake summary, room-by-room findings, photo log, lab samples, recommendations, Spore credential page, your handler credential page, signed authorization, and IICRC disclaimer.',
+    title: 'Step 6: Generate the report',
+    text: 'Tap "6. Generate Report" to create the branded PDF. Includes cover with Spore feature, intake summary, room-by-room findings, photo log, lab samples, recommendations, Spore credential page, your handler credential page, signed authorization, and IICRC disclaimer.',
     attachTo: { element: 'a[href*="/screening/report"]', on: 'bottom' },
   },
   {

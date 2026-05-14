@@ -24,6 +24,7 @@ import EstimatePDFScreen from './screens/estimates/EstimatePDF'
 import EstimateSign from './screens/estimates/EstimateSign'
 import ScreeningDashboard from './screens/screening/ScreeningDashboard'
 import ScreeningAuthorization from './screens/screening/ScreeningAuthorization'
+import PropertyHistory from './screens/screening/PropertyHistory'
 import ScreeningWalkthrough from './screens/screening/ScreeningWalkthrough'
 import ScreeningSamples from './screens/screening/ScreeningSamples'
 import ScreeningRecommendationsScreen from './screens/screening/ScreeningRecommendations'
@@ -75,6 +76,7 @@ export default function App() {
           <Route path="/jobs/:id/estimates/:estimateId/sign" element={<RequireAuth><EstimateSign /></RequireAuth>} />
           <Route path="/jobs/:id/screening" element={<RequireAuth><ScreeningDashboard /></RequireAuth>} />
           <Route path="/jobs/:id/screening/authorization" element={<RequireAuth><ScreeningAuthorization /></RequireAuth>} />
+          <Route path="/jobs/:id/screening/property-history" element={<RequireAuth><PropertyHistory /></RequireAuth>} />
           <Route path="/jobs/:id/screening/walkthrough" element={<RequireAuth><ScreeningWalkthrough /></RequireAuth>} />
           <Route path="/jobs/:id/screening/samples" element={<RequireAuth><ScreeningSamples /></RequireAuth>} />
           <Route path="/jobs/:id/screening/recommendations" element={<RequireAuth><ScreeningRecommendationsScreen /></RequireAuth>} />

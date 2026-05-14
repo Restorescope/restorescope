@@ -499,8 +499,32 @@ function IntakeSection({ snapshot }) {
 
       {insp.reported_history && (
         <>
-          <Text style={styles.subHeading}>Property history</Text>
+          <Text style={styles.subHeading}>Property history (notes)</Text>
           <Text style={styles.para}>{insp.reported_history}</Text>
+        </>
+      )}
+
+      {insp.property_history && hasPropertyHistoryContent(insp.property_history) && (
+        <>
+          <Text style={styles.subHeading}>Structured property history</Text>
+          {insp.property_history.year_built && (
+            <Text style={styles.para}>• Year built: {insp.property_history.year_built}</Text>
+          )}
+          {insp.property_history.construction_type && (
+            <Text style={styles.para}>• Construction: {insp.property_history.construction_type}</Text>
+          )}
+          {renderHistoryFlag(insp.property_history, 'prior_water_damage', 'Prior water damage')}
+          {renderHistoryFlag(insp.property_history, 'exterior_issues', 'Exterior issues')}
+          {renderHistoryFlag(insp.property_history, 'roofing_issues', 'Roofing issues')}
+          {renderHistoryFlag(insp.property_history, 'grade_problems', 'Grade/drainage problems')}
+          {renderHistoryFlag(insp.property_history, 'foundation_issues', 'Foundation issues')}
+          {renderHistoryFlag(insp.property_history, 'hvac_issues', 'HVAC issues')}
+          {renderHistoryFlag(insp.property_history, 'plumbing_issues', 'Plumbing issues')}
+          {renderHistoryFlag(insp.property_history, 'ventilation_issues', 'Ventilation issues')}
+          {renderHistoryFlag(insp.property_history, 'previous_remediation', 'Previous mold remediation')}
+          {insp.property_history.other_notes && (
+            <Text style={styles.para}>• Other observations: {insp.property_history.other_notes}</Text>
+          )}
         </>
       )}
 
@@ -1044,3 +1068,21 @@ function formatDateTime(iso) {
   if (!iso) return null
   return new Date(iso).toLocaleString(undefined, { year: 'numeric', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
 }
+
+function hasPropertyHistoryContent(ph) {
+  if (!ph) return false
+  if (ph.year_built || ph.construction_type || ph.other_notes) return true
+  const flags = ['prior_water_damage', 'exterior_issues', 'roofing_issues',
+    'grade_problems', 'foundation_issues', 'hvac_issues', 'plumbing_issues',
+    'ventilation_issues', 'previous_remediation']
+  return flags.some(k => ph[k])
+}
+
+function renderHistoryFlag(ph, key, label) {
+  if (!ph[key]) return null
+  const notes = ph[`${key}_notes`]
+  return (
+    <Text style={styles.para}>• {label}{notes ? ` — ${notes}` : ''}</Text>
+  )
+}
+

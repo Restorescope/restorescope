@@ -125,6 +125,7 @@ export default function ScreeningRecommendationsScreen() {
           reason_for_screening: inspection.reason_for_screening,
           customer_concerns:    inspection.customer_concerns,
           reported_history:     inspection.reported_history,
+          property_history:     inspection.property_history,
           scope:                inspection.scope,
         },
         alerts: alerts.map((a) => ({
