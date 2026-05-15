@@ -62,6 +62,9 @@ export default function PhotosScreen() {
   function onDeleted(id) {
     setPhotos((p) => p.filter((x) => x.id !== id))
   }
+  function onUpdated(row) {
+    setPhotos((p) => p.map((x) => (x.id === row.id ? { ...x, ...row } : x)))
+  }
 
   /**
    * Bulk-categorize photos missing a category. Sends each photo to the
@@ -200,6 +203,7 @@ export default function PhotosScreen() {
               photos={photos}
               rooms={rooms}
               onDeleted={onDeleted}
+              onUpdated={onUpdated}
               emptyHint="No photos yet. Use the uploader above."
             />
           )}
