@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/auth.jsx'
 import { Card, CardHeader, CardBody, CardTitle, Badge, Button } from '../ui'
 import { computeJobRequirements, scoreTone } from '../lib/photoRequirements'
+import RequirementPhotoButton from './RequirementPhotoButton'
 
 /**
  * PhotoRequirementsChecklist
@@ -139,13 +140,26 @@ export default function PhotoRequirementsChecklist({ jobId, compact = false }) {
     gray:   'bg-ink-50 border-ink-300 text-ink-900',
   }
 
-  // Compact mode: just the score badge + summary line
+  // Compact mode: score badge + summary line + "Take next photo" for first missing required
   if (compact) {
+    const nextMissing = result.requirements.find(
+      (i) => (i.status === 'missing' || i.status === 'partial') && i.req.severity === 'required'
+    )
     return (
-      <span className={`inline-flex items-center gap-2 px-2 py-1 rounded border text-xs font-semibold ${toneColors[tone]}`}>
-        <span>Doc score: {result.score}</span>
-        <span className="opacity-70">· {result.requiredMetCount}/{result.requiredTotalCount} required</span>
-      </span>
+      <div className="flex items-center gap-2 flex-wrap">
+        <span className={`inline-flex items-center gap-2 px-2 py-1 rounded border text-xs font-semibold ${toneColors[tone]}`}>
+          <span>Doc score: {result.score}</span>
+          <span className="opacity-70">· {result.requiredMetCount}/{result.requiredTotalCount} required</span>
+        </span>
+        {nextMissing && (
+          <RequirementPhotoButton
+            jobId={jobId}
+            requirement={nextMissing.req}
+            size="sm"
+            label={`Take "${nextMissing.req.label}"`}
+          />
+        )}
+      </div>
     )
   }
 
@@ -175,7 +189,7 @@ export default function PhotoRequirementsChecklist({ jobId, compact = false }) {
       {expanded && (
         <CardBody className="space-y-2">
           {result.requirements.map((item) => (
-            <RequirementRow key={item.req.key} item={item} />
+            <RequirementRow key={item.req.key} item={item} jobId={jobId} />
           ))}
         </CardBody>
       )}
@@ -183,7 +197,7 @@ export default function PhotoRequirementsChecklist({ jobId, compact = false }) {
   )
 }
 
-function RequirementRow({ item }) {
+function RequirementRow({ item, jobId }) {
   const { req, status, photosMatched, photosNeeded } = item
   const iconByStatus = {
     met: '✓',
@@ -203,6 +217,7 @@ function RequirementRow({ item }) {
     missing: req.severity === 'required' ? 'bg-red-50/30' : 'bg-ink-50/30',
     overridden: 'bg-ink-50/30',
   }
+  const showTakeButton = (status === 'missing' || status === 'partial') && jobId
   return (
     <div className={`flex items-start gap-3 p-2 rounded ${bgByStatus[status]}`}>
       <div className={`text-lg font-bold ${colorByStatus[status]} mt-0.5 w-5 text-center`}>
@@ -225,6 +240,15 @@ function RequirementRow({ item }) {
           <p className="text-xs text-ink-500 italic mt-0.5">Overridden: {item.override.reason}</p>
         )}
       </div>
+      {showTakeButton && (
+        <div className="shrink-0">
+          <RequirementPhotoButton
+            jobId={jobId}
+            requirement={req}
+            size="sm"
+          />
+        </div>
+      )}
     </div>
   )
 }

@@ -23,7 +23,7 @@ import { supabase } from './supabase'
  *   onProgress  - optional (phase, pct?) => void; phases: 'compressing'|'uploading'|'saving'
  */
 export async function uploadJobPhoto(file, meta, onProgress) {
-  const { tenantId, jobId, roomId, workItemId, readingId, category, uploadedBy, takenAt } = meta
+  const { tenantId, jobId, roomId, workItemId, readingId, category, caption, uploadedBy, takenAt } = meta
   if (!tenantId || !jobId || !category) {
     throw new Error('uploadJobPhoto: missing required tenantId/jobId/category')
   }
@@ -85,6 +85,7 @@ export async function uploadJobPhoto(file, meta, onProgress) {
       work_item_id: workItemId || null,
       reading_id: readingId || null,
       category,
+      caption: caption || null,
       storage_path: `${bucket}:${storagePath}`,   // store bucket+path together
       taken_at: takenAtIso,
       uploaded_by: uploadedBy || null,
