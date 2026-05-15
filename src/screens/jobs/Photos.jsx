@@ -4,6 +4,7 @@ import { supabase } from '../../lib/supabase'
 import { Header, BottomNav, Section, Card, CardHeader, CardBody, CardTitle, Button } from '../../ui'
 import PhotoUploader from '../../components/PhotoUploader'
 import PhotoGallery from '../../components/PhotoGallery'
+import PhotoRequirementsChecklist from '../../components/PhotoRequirementsChecklist'
 import { getPhotoUrls } from '../../lib/photos'
 
 /**
@@ -135,6 +136,8 @@ export default function PhotosScreen() {
             {error}
           </div>
         )}
+
+        <PhotoRequirementsChecklist jobId={jobId} />
 
         <Card>
           <CardHeader><CardTitle>Add photos</CardTitle></CardHeader>

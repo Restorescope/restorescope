@@ -8,6 +8,7 @@ import {
   Header, BottomNav, Section, Button, Card, CardBody, StatusPill, Badge,
 } from '../../ui'
 import QCBanner from '../../components/QCBanner'
+import PhotoRequirementsChecklist from '../../components/PhotoRequirementsChecklist'
 
 /**
  * JobDashboard — single job overview, redesigned per locked mockup.
@@ -48,7 +49,7 @@ export default function JobDashboard() {
       setLoading(true); setError(null)
       const { data: j, error: jErr } = await supabase
         .from('jobs')
-        .select('id, job_number, customer, loss_info, status, created_at, updated_at, finalized_at, paid_at, archived_at, deleted_at, screening_enabled, screening_only')
+        .select('id, job_number, customer, loss_info, status, created_at, updated_at, finalized_at, paid_at, archived_at, deleted_at, screening_enabled, screening_only, work_types_performed, photo_requirements_enabled')
         .eq('id', id)
         .maybeSingle()
       if (cancelled) return
@@ -371,6 +372,22 @@ export default function JobDashboard() {
               ...blocks.slice(0, 3).map((b) => ({ key: b.rule_key, level: b.level, label: b.detail || b.label })),
               ...(blocks.length === 0 ? warns.slice(0, 2).map((w) => ({ key: w.rule_key, level: w.level, label: w.detail || w.label })) : []),
             ]} />
+          </CardBody>
+        </Card>
+
+        {/* Photo documentation */}
+        <Card accent="yellow" className="mb-5">
+          <CardBody>
+            <div className="flex items-center justify-between gap-2 flex-wrap mb-3">
+              <h2 className="text-base font-semibold text-ink-900">📸 Photo documentation</h2>
+              <Link to={`/jobs/${id}/photos`} className="text-sm text-brand-blue font-semibold hover:underline">
+                Open photos →
+              </Link>
+            </div>
+            <WorkTypesPicker job={job} onSaved={(updates) => setJob((j) => ({ ...j, ...updates }))} />
+            <div className="mt-3">
+              <PhotoRequirementsChecklist jobId={id} compact />
+            </div>
           </CardBody>
         </Card>
 
@@ -722,4 +739,90 @@ function computeRhTrend(visits) {
   if (last < first - 2) return 'improving'
   if (last > first + 2) return 'worsening'
   return 'stable'
+}
+
+// ============================================================================
+// Work types picker — manual multi-select for which work was performed.
+// Used by the photo requirements engine to fire work-type-specific requirements.
+// ============================================================================
+const WORK_TYPE_OPTIONS = [
+  { key: 'drywall_removal',    label: 'Drywall removal' },
+  { key: 'carpet_removal',     label: 'Carpet / pad removal' },
+  { key: 'baseboard_removal',  label: 'Baseboard removal' },
+  { key: 'cabinet_removal',    label: 'Cabinet / vanity removal' },
+  { key: 'hardwood_removal',   label: 'Hardwood removal' },
+  { key: 'vinyl_removal',      label: 'Vinyl / LVP / laminate removal' },
+  { key: 'tile_removal',       label: 'Tile removal' },
+  { key: 'subfloor_removal',   label: 'Subfloor removal' },
+  { key: 'insulation_removal', label: 'Insulation removal' },
+  { key: 'ceiling_removal',    label: 'Ceiling material removal' },
+  { key: 'concrete_grinding',  label: 'Concrete grinding' },
+  { key: 'trim_removal',       label: 'Trim / door removal' },
+]
+
+function WorkTypesPicker({ job, onSaved }) {
+  const [selected, setSelected] = useState(new Set(job.work_types_performed || []))
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState(null)
+  const [expanded, setExpanded] = useState(false)
+
+  async function toggle(key) {
+    const next = new Set(selected)
+    if (next.has(key)) next.delete(key); else next.add(key)
+    setSelected(next)
+    setSaving(true); setError(null)
+    try {
+      const arr = Array.from(next)
+      const { error: e } = await supabase
+        .from('jobs')
+        .update({ work_types_performed: arr })
+        .eq('id', job.id)
+      if (e) throw e
+      onSaved?.({ work_types_performed: arr })
+    } catch (e) {
+      setError(e.message)
+      setSelected(new Set(job.work_types_performed || []))
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const summary = selected.size === 0
+    ? 'No work types selected — only universal requirements will apply'
+    : `${selected.size} work type${selected.size === 1 ? '' : 's'} selected`
+
+  return (
+    <div className="border border-ink-200 rounded p-3 bg-white">
+      <div className="flex items-center justify-between gap-2 flex-wrap">
+        <div>
+          <p className="text-sm font-semibold text-ink-900">Work performed on this job</p>
+          <p className="text-xs text-ink-500 mt-0.5">{summary}</p>
+        </div>
+        <button
+          type="button"
+          onClick={() => setExpanded((e) => !e)}
+          className="text-xs text-brand-blue underline hover:no-underline"
+        >
+          {expanded ? 'Hide' : 'Edit'}
+        </button>
+      </div>
+      {expanded && (
+        <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2">
+          {WORK_TYPE_OPTIONS.map((wt) => (
+            <label key={wt.key} className="flex items-start gap-2 text-sm cursor-pointer p-1.5 rounded hover:bg-ink-50">
+              <input
+                type="checkbox"
+                checked={selected.has(wt.key)}
+                onChange={() => toggle(wt.key)}
+                disabled={saving}
+                className="mt-0.5"
+              />
+              <span>{wt.label}</span>
+            </label>
+          ))}
+        </div>
+      )}
+      {error && <p className="text-xs text-danger mt-2">{error}</p>}
+    </div>
+  )
 }
