@@ -8,6 +8,7 @@ import {
   Header, BottomNav, Section, Button, Card, CardHeader, CardBody, CardTitle,
   Badge, StatusPill,
 } from '../../ui'
+import PreSubmissionAnalysis from '../../components/PreSubmissionAnalysis'
 
 /**
  * ReviewScreen — runs QC against the current job state and shows results.
@@ -224,6 +225,13 @@ export default function ReviewScreen() {
                 </details>
               </Section>
             )}
+
+            {/* AI pre-submission analysis */}
+            <PreSubmissionAnalysis
+              jobId={jobId}
+              jobStatus={job.status}
+              autoRun={job.status === 'ready_for_review'}
+            />
 
             {/* Actions */}
             <Card>
