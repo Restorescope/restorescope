@@ -98,7 +98,16 @@ export default function PhotoRequirementsChecklist({ jobId, compact = false }) {
 
   // Job has requirements turned off — offer to enable
   if (result?.disabled) {
-    if (compact) return null
+    if (compact) {
+      return (
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="inline-flex items-center gap-2 px-2 py-1 rounded border text-xs font-semibold bg-ink-50 border-ink-300 text-ink-600">
+            Photo requirements disabled
+          </span>
+          <Button onClick={enableForJob} loading={enabling} variant="ghost" size="sm">Enable for this job</Button>
+        </div>
+      )
+    }
     return (
       <Card>
         <CardBody className="flex items-center gap-3 flex-wrap">
@@ -112,7 +121,16 @@ export default function PhotoRequirementsChecklist({ jobId, compact = false }) {
     )
   }
 
-  if (!result || result.requirements.length === 0) return null
+  if (!result || result.requirements.length === 0) {
+    if (compact) {
+      return (
+        <span className="inline-flex items-center gap-2 px-2 py-1 rounded border text-xs font-semibold bg-ink-50 border-ink-300 text-ink-600">
+          No requirements yet — set category/class in loss info
+        </span>
+      )
+    }
+    return null
+  }
   const tone = scoreTone(result.score)
   const toneColors = {
     green:  'bg-green-50 border-green-300 text-green-900',
