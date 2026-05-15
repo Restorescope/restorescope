@@ -25,6 +25,7 @@ export async function loadReportSnapshot(jobId) {
     equipRes, visitsRes,
     scopeRes, photosRes,
     matsRes, metersRes, equipSetRes, scopeSetRes,
+    dehuRes,
   ] = await Promise.all([
     supabase.from('jobs')
       .select('id, job_number, customer, loss_info, status, created_at, finalized_at')
@@ -43,7 +44,7 @@ export async function loadReportSnapshot(jobId) {
       .select('id, chamber_id, room_id, event_type, equipment_type, asset_label, asset_id, purpose, notes, event_at')
       .eq('job_id', jobId).order('event_at'),
     supabase.from('monitoring_visits')
-      .select('id, chamber_id, visit_at, ambient_temp_f, ambient_rh, ambient_gpp, dehu_intake_rh, dehu_intake_gpp, dehu_exhaust_gpp, grain_depression, hours_running, notes')
+      .select('id, chamber_id, visit_at, ambient_temp_f, ambient_rh, ambient_gpp, outside_temp_f, outside_rh, outside_gpp, weather_conditions, unaffected_temp_f, unaffected_rh, unaffected_gpp, hours_running, notes')
       .eq('job_id', jobId).order('visit_at'),
     supabase.from('scope_items')
       .select('id, room_id, scope_key, reason_template_key, reason_text, quantity, unit, created_at')
@@ -55,6 +56,9 @@ export async function loadReportSnapshot(jobId) {
     supabase.from('settings').select('data').eq('setting_type', 'meters').maybeSingle(),
     supabase.from('settings').select('data').eq('setting_type', 'equipment').maybeSingle(),
     supabase.from('settings').select('data').eq('setting_type', 'scope_library').maybeSingle(),
+    supabase.from('monitoring_dehu_readings')
+      .select('id, visit_id, dehu_asset_label, reading_at, exhaust_temp_f, exhaust_rh, exhaust_gpp, notes')
+      .eq('job_id', jobId).order('reading_at'),
   ])
 
   if (jobRes.error || !jobRes.data) throw new Error(jobRes.error?.message || 'Job not found')
@@ -92,6 +96,7 @@ export async function loadReportSnapshot(jobId) {
     readings: readingsRes.data ?? [],
     equipmentEvents: equipRes.data ?? [],
     monitoringVisits: visitsRes.data ?? [],
+    dehuReadings: dehuRes.data ?? [],
     scopeItems: scopeRes.data ?? [],
     photos: photosWithData,
     settings: {

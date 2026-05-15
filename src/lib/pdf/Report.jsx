@@ -9,6 +9,8 @@ import CauseSource from './sections/CauseSource'
 import { AffectedAreasOverview, RoomByRoom } from './sections/Areas'
 import ScopeJustification from './sections/ScopeJustification'
 import DryingSummary from './sections/DryingSummary'
+import AmbientReadingsLog from './sections/AmbientReadingsLog'
+import MoistureReadingsLog from './sections/MoistureReadingsLog'
 import EquipmentSummary from './sections/EquipmentSummary'
 import PhotoLog from './sections/PhotoLog'
 import { Limitations, CompletionStatement } from './sections/Closing'
@@ -72,6 +74,16 @@ export default function Report({ snapshot }) {
         <ScopeJustification snapshot={snapshot} />
         <DryingSummary snapshot={snapshot} />
         <EquipmentSummary snapshot={snapshot} />
+      </Page>
+
+      {/* Page 5: Daily ambient readings + Material moisture readings */}
+      <Page size="LETTER" style={styles.page}>
+        <PageHeader {...chromeProps} />
+        <PageFooter {...chromeProps} />
+
+        <AmbientReadingsLog snapshot={snapshot} />
+        <View style={{ marginTop: 14 }} />
+        <MoistureReadingsLog snapshot={snapshot} />
       </Page>
 
       {/* Page 5+: Photo Log (may span many pages) */}
