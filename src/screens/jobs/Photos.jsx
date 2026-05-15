@@ -23,6 +23,7 @@ export default function PhotosScreen() {
   const [error, setError] = useState(null)
   const [aiBusy, setAiBusy] = useState(false)
   const [aiProgress, setAiProgress] = useState('')
+  const [uploaderRoomId, setUploaderRoomId] = useState(null)
 
   const load = useCallback(async () => {
     setLoading(true); setError(null)
@@ -141,12 +142,28 @@ export default function PhotosScreen() {
 
         <Card>
           <CardHeader><CardTitle>Add photos</CardTitle></CardHeader>
-          <CardBody>
-            <p className="text-sm text-ink-600 mb-3">
+          <CardBody className="space-y-3">
+            <p className="text-sm text-ink-600">
               Pick a category, then take a photo or pick from your library. On phones, the
               camera opens automatically. You can upload several at once.
             </p>
-            <PhotoUploader jobId={jobId} onUploaded={onUploaded} />
+            <div>
+              <label className="text-xs font-semibold text-ink-700 block mb-1">Attach to:</label>
+              <select
+                value={uploaderRoomId || ''}
+                onChange={(e) => setUploaderRoomId(e.target.value || null)}
+                className="w-full px-2 py-1.5 border border-ink-300 rounded text-sm"
+              >
+                <option value="">Job-level (no specific room)</option>
+                {rooms.map((r) => (
+                  <option key={r.id} value={r.id}>{r.room_name}</option>
+                ))}
+              </select>
+              <p className="text-xs text-ink-500 mt-1">
+                Per-room requirements only match photos attached to the same room.
+              </p>
+            </div>
+            <PhotoUploader jobId={jobId} roomId={uploaderRoomId || undefined} onUploaded={onUploaded} />
           </CardBody>
         </Card>
 

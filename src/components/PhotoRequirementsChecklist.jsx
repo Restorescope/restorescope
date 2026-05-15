@@ -8,23 +8,12 @@ import RequirementPhotoButton from './RequirementPhotoButton'
 /**
  * PhotoRequirementsChecklist
  *
- * Live checklist of required photos for a job. Shown on the Photos screen
- * (and on the Job dashboard's documentation summary).
+ * Two display modes:
+ *   compact=true  — used on Job Dashboard: shows overall score, per-room mini-scores,
+ *                   and a single "Take next photo" button for the highest-priority missing
+ *   compact=false — used on Photos screen: full checklists grouped by scope/room
  *
- * Props:
- *   jobId
- *   compact   — show compact summary instead of full checklist (for dashboards)
- *
- * Internally fetches:
- *   - jobs row (for loss_info, work_types_performed, photo_requirements_enabled)
- *   - photos for this job
- *   - affected_rooms for this job
- *   - equipment (count, types)
- *   - photo_requirements catalog (system + tenant)
- *   - photo_requirement_overrides for this job
- *
- * Subscribes to photo changes via supabase realtime so the checklist
- * updates live as techs upload photos.
+ * Subscribes to photo realtime so checklists update live.
  */
 export default function PhotoRequirementsChecklist({ jobId, compact = false }) {
   const { profile } = useAuth()
@@ -36,16 +25,16 @@ export default function PhotoRequirementsChecklist({ jobId, compact = false }) {
   const [equipment, setEquipment] = useState([])
   const [catalog, setCatalog] = useState([])
   const [overrides, setOverrides] = useState([])
-  const [expanded, setExpanded] = useState(!compact)
   const [enabling, setEnabling] = useState(false)
+  const [openSections, setOpenSections] = useState({}) // collapsible state, keys: 'job' or room.id
 
   const load = async () => {
     setLoading(true); setError(null)
     try {
       const [jobRes, photosRes, roomsRes, eqRes, catalogRes, overridesRes] = await Promise.all([
         supabase.from('jobs').select('id, loss_info, work_types_performed, photo_requirements_enabled').eq('id', jobId).single(),
-        supabase.from('photos').select('id, category, caption').eq('job_id', jobId),
-        supabase.from('affected_rooms').select('id, materials, actions').eq('job_id', jobId),
+        supabase.from('photos').select('id, category, caption, room_id').eq('job_id', jobId),
+        supabase.from('affected_rooms').select('id, room_name, materials, actions').eq('job_id', jobId).order('created_at'),
         supabase.from('equipment').select('id').eq('job_id', jobId),
         supabase.from('photo_requirements').select('*').or(`tenant_id.is.null,tenant_id.eq.${profile.tenant_id}`).eq('active', true),
         supabase.from('photo_requirement_overrides').select('*').eq('job_id', jobId),
@@ -66,7 +55,7 @@ export default function PhotoRequirementsChecklist({ jobId, compact = false }) {
 
   useEffect(() => { load() }, [jobId])
 
-  // Realtime subscription on photos so the checklist auto-updates
+  // Realtime photo updates
   useEffect(() => {
     if (!jobId) return
     const channel = supabase
@@ -94,10 +83,14 @@ export default function PhotoRequirementsChecklist({ jobId, compact = false }) {
     }
   }
 
+  function toggleSection(key) {
+    setOpenSections((s) => ({ ...s, [key]: !s[key] }))
+  }
+
   if (loading) return null
   if (error) return <p className="text-xs text-danger">Couldn't load photo requirements: {error}</p>
 
-  // Job has requirements turned off — offer to enable
+  // Disabled
   if (result?.disabled) {
     if (compact) {
       return (
@@ -114,7 +107,7 @@ export default function PhotoRequirementsChecklist({ jobId, compact = false }) {
         <CardBody className="flex items-center gap-3 flex-wrap">
           <div className="flex-1">
             <p className="text-sm font-semibold text-ink-900">Photo requirements disabled for this job</p>
-            <p className="text-xs text-ink-600 mt-0.5">Enable to see a checklist of required photos and a documentation health score.</p>
+            <p className="text-xs text-ink-600 mt-0.5">Enable to see required photos and a documentation health score.</p>
           </div>
           <Button onClick={enableForJob} loading={enabling} variant="ghost" size="sm">Enable</Button>
         </CardBody>
@@ -122,7 +115,9 @@ export default function PhotoRequirementsChecklist({ jobId, compact = false }) {
     )
   }
 
-  if (!result || result.requirements.length === 0) {
+  if (!result) return null
+  const hasAny = (result.job?.items?.length || 0) + (result.rooms.reduce((s, r) => s + r.items.length, 0)) > 0
+  if (!hasAny) {
     if (compact) {
       return (
         <span className="inline-flex items-center gap-2 px-2 py-1 rounded border text-xs font-semibold bg-ink-50 border-ink-300 text-ink-600">
@@ -132,6 +127,7 @@ export default function PhotoRequirementsChecklist({ jobId, compact = false }) {
     }
     return null
   }
+
   const tone = scoreTone(result.score)
   const toneColors = {
     green:  'bg-green-50 border-green-300 text-green-900',
@@ -140,71 +136,152 @@ export default function PhotoRequirementsChecklist({ jobId, compact = false }) {
     gray:   'bg-ink-50 border-ink-300 text-ink-900',
   }
 
-  // Compact mode: score badge + summary line + "Take next photo" for first missing required
+  // ============================ COMPACT ============================
   if (compact) {
-    const nextMissing = result.requirements.find(
-      (i) => (i.status === 'missing' || i.status === 'partial') && i.req.severity === 'required'
-    )
+    // Find next missing required (job-level first, then by room)
+    const nextMissing = findNextMissing(result)
     return (
-      <div className="flex items-center gap-2 flex-wrap">
-        <span className={`inline-flex items-center gap-2 px-2 py-1 rounded border text-xs font-semibold ${toneColors[tone]}`}>
-          <span>Doc score: {result.score}</span>
-          <span className="opacity-70">· {result.requiredMetCount}/{result.requiredTotalCount} required</span>
-        </span>
-        {nextMissing && (
-          <RequirementPhotoButton
-            jobId={jobId}
-            requirement={nextMissing.req}
-            size="sm"
-            label={`Take "${nextMissing.req.label}"`}
-          />
+      <div className="space-y-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className={`inline-flex items-center gap-2 px-2 py-1 rounded border text-xs font-semibold ${toneColors[tone]}`}>
+            <span>Doc score: {result.score}</span>
+            <span className="opacity-70">· {result.requiredMetCount}/{result.requiredTotalCount} required</span>
+          </span>
+          {nextMissing && (
+            <RequirementPhotoButton
+              jobId={jobId}
+              roomId={nextMissing.roomId}
+              requirement={nextMissing.req}
+              size="sm"
+              label={`Take "${nextMissing.req.label}"${nextMissing.roomLabel ? ` (${nextMissing.roomLabel})` : ''}`}
+            />
+          )}
+        </div>
+        {/* Per-room mini scores */}
+        {result.rooms.length > 0 && (
+          <div className="flex flex-wrap gap-1.5">
+            <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold border ${toneColors[scoreTone(result.job.score)]}`}>
+              Job-level: {result.job.score}
+            </span>
+            {result.rooms.map((r) => (
+              <span key={r.room.id} className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold border ${toneColors[scoreTone(r.score)]}`}>
+                {r.room.room_name}: {r.score}
+              </span>
+            ))}
+          </div>
         )}
       </div>
     )
   }
 
+  // ============================ FULL ============================
   return (
     <Card>
       <CardHeader>
         <div className="flex items-center justify-between gap-2 flex-wrap">
           <CardTitle>Photo requirements</CardTitle>
-          <div className="flex items-center gap-2">
-            <span className={`inline-flex items-center gap-2 px-3 py-1.5 rounded border text-sm font-semibold ${toneColors[tone]}`}>
-              <span>Score: {result.score}</span>
-              <span className="opacity-70 text-xs">· {result.requiredMetCount}/{result.requiredTotalCount} required met</span>
-            </span>
-            <button
-              type="button"
-              onClick={() => setExpanded((e) => !e)}
-              className="text-xs text-brand-blue underline hover:no-underline"
-            >
-              {expanded ? 'Collapse' : 'Show details'}
-            </button>
-          </div>
+          <span className={`inline-flex items-center gap-2 px-3 py-1.5 rounded border text-sm font-semibold ${toneColors[tone]}`}>
+            <span>Score: {result.score}</span>
+            <span className="opacity-70 text-xs">· {result.requiredMetCount}/{result.requiredTotalCount} required met</span>
+          </span>
         </div>
         <p className="text-xs text-ink-500 mt-1">
-          Required photos based on this job's category, class, and work performed. Updates live as you upload.
+          Required photos based on this job's category, class, work performed, and each room's materials/actions.
+          Updates live as you upload.
         </p>
       </CardHeader>
-      {expanded && (
-        <CardBody className="space-y-2">
-          {result.requirements.map((item) => (
-            <RequirementRow key={item.req.key} item={item} jobId={jobId} />
-          ))}
-        </CardBody>
-      )}
+      <CardBody className="space-y-2">
+
+        {/* JOB-LEVEL SECTION */}
+        {result.job && result.job.items.length > 0 && (
+          <ChecklistSection
+            keyId="job"
+            title="Job-level photos"
+            subtitle="Taken once for the whole job"
+            score={result.job.score}
+            metCount={result.job.requiredMetCount}
+            totalCount={result.job.requiredTotalCount}
+            isOpen={openSections.job ?? true}
+            onToggle={() => toggleSection('job')}
+            items={result.job.items}
+            jobId={jobId}
+            roomId={null}
+            tone={toneColors}
+          />
+        )}
+
+        {/* PER-ROOM SECTIONS */}
+        {result.rooms.map((r) => (
+          <ChecklistSection
+            key={r.room.id}
+            keyId={r.room.id}
+            title={r.room.room_name}
+            subtitle={`Per-room photos for ${r.room.room_name}`}
+            score={r.score}
+            metCount={r.requiredMetCount}
+            totalCount={r.requiredTotalCount}
+            isOpen={openSections[r.room.id] ?? false}
+            onToggle={() => toggleSection(r.room.id)}
+            items={r.items}
+            jobId={jobId}
+            roomId={r.room.id}
+            tone={toneColors}
+          />
+        ))}
+
+      </CardBody>
     </Card>
   )
 }
 
-function RequirementRow({ item, jobId }) {
-  const { req, status, photosMatched, photosNeeded } = item
-  const iconByStatus = {
-    met: '✓',
-    partial: '◐',
-    missing: '✗',
-    overridden: '—',
+function findNextMissing(result) {
+  // Job-level first
+  if (result.job) {
+    const found = result.job.items.find((i) => (i.status === 'missing' || i.status === 'partial') && i.req.severity === 'required')
+    if (found) return { req: found.req, roomId: null }
   }
+  // Then each room in order
+  for (const r of result.rooms) {
+    const found = r.items.find((i) => (i.status === 'missing' || i.status === 'partial') && i.req.severity === 'required')
+    if (found) return { req: found.req, roomId: r.room.id, roomLabel: r.room.room_name }
+  }
+  return null
+}
+
+function ChecklistSection({ keyId, title, subtitle, score, metCount, totalCount, isOpen, onToggle, items, jobId, roomId, tone }) {
+  const tn = scoreTone(score)
+  return (
+    <div className="border border-ink-200 rounded">
+      <button
+        type="button"
+        onClick={onToggle}
+        className="w-full flex items-center justify-between gap-3 p-3 hover:bg-ink-50 text-left"
+      >
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            <p className="text-sm font-semibold text-ink-900">{title}</p>
+            <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold border ${tone[tn]}`}>
+              {score} · {metCount}/{totalCount}
+            </span>
+          </div>
+          <p className="text-xs text-ink-500 mt-0.5">{subtitle}</p>
+        </div>
+        <span className="text-ink-400 text-lg">{isOpen ? '▾' : '▸'}</span>
+      </button>
+      {isOpen && (
+        <div className="border-t border-ink-200 p-2 space-y-2">
+          {items.map((item) => (
+            <RequirementRow key={item.req.key} item={item} jobId={jobId} roomId={roomId} />
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function RequirementRow({ item, jobId, roomId }) {
+  const { req, status, photosMatched, photosNeeded } = item
+  const iconByStatus = { met: '✓', partial: '◐', missing: '✗', overridden: '—' }
   const colorByStatus = {
     met: 'text-green-700',
     partial: 'text-yellow-700',
@@ -244,6 +321,7 @@ function RequirementRow({ item, jobId }) {
         <div className="shrink-0">
           <RequirementPhotoButton
             jobId={jobId}
+            roomId={roomId}
             requirement={req}
             size="sm"
           />

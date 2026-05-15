@@ -10,16 +10,17 @@ import { Button, Card, CardBody } from '../ui'
  * A button bound to a specific photo requirement. Tapping it:
  *   1) Opens the device camera (mobile) or file picker (desktop)
  *   2) Shows a preview with an editable caption (pre-filled to requirement.label)
- *   3) On confirm, uploads with the requirement's category + caption
+ *   3) On confirm, uploads with the requirement's category + caption + optional roomId
  *
  * Props:
  *   jobId
+ *   roomId        — optional uuid of affected_rooms; if set, photo gets that room_id
  *   requirement   — { key, label, category }
- *   onUploaded?(photoRow)   — callback after successful upload
+ *   onUploaded?(photoRow)
  *   size          — 'sm' | 'md'  (default 'sm')
  *   label         — custom button label (default 'Take photo')
  */
-export default function RequirementPhotoButton({ jobId, requirement, onUploaded, size = 'sm', label = 'Take photo' }) {
+export default function RequirementPhotoButton({ jobId, roomId = null, requirement, onUploaded, size = 'sm', label = 'Take photo' }) {
   const { profile } = useAuth()
   const fileInputRef = useRef(null)
   const [stage, setStage] = useState('idle')   // 'idle' | 'preview' | 'uploading'
@@ -68,6 +69,7 @@ export default function RequirementPhotoButton({ jobId, requirement, onUploaded,
       const row = await uploadJobPhoto(file, {
         tenantId: profile.tenant_id,
         jobId,
+        roomId,
         category: requirement.category,
         caption: caption.trim() || requirement.label,
         uploadedBy: profile.id,
