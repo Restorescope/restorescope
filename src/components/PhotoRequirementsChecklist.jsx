@@ -28,8 +28,9 @@ export default function PhotoRequirementsChecklist({ jobId, compact = false }) {
   const [enabling, setEnabling] = useState(false)
   const [openSections, setOpenSections] = useState({}) // collapsible state, keys: 'job' or room.id
 
-  const load = async () => {
-    setLoading(true); setError(null)
+  const load = async (isInitial = false) => {
+    if (isInitial) setLoading(true)
+    setError(null)
     try {
       const [jobRes, photosRes, roomsRes, eqRes, catalogRes, overridesRes] = await Promise.all([
         supabase.from('jobs').select('id, loss_info, work_types_performed, photo_requirements_enabled').eq('id', jobId).single(),
@@ -53,14 +54,14 @@ export default function PhotoRequirementsChecklist({ jobId, compact = false }) {
     }
   }
 
-  useEffect(() => { load() }, [jobId])
+  useEffect(() => { load(true) }, [jobId])
 
   // Realtime photo updates
   useEffect(() => {
     if (!jobId) return
     const channel = supabase
       .channel(`photos-${jobId}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'photos', filter: `job_id=eq.${jobId}` }, () => load())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'photos', filter: `job_id=eq.${jobId}` }, () => load(false))
       .subscribe()
     return () => supabase.removeChannel(channel)
   }, [jobId])
@@ -69,6 +70,20 @@ export default function PhotoRequirementsChecklist({ jobId, compact = false }) {
     if (!job) return null
     return computeJobRequirements({ job, photos, rooms, equipment, catalog, overrides })
   }, [job, photos, rooms, equipment, catalog, overrides])
+
+  // After a photo is uploaded, optimistically add it to local state so the
+  // checklist updates instantly. Then trigger a real refetch for safety.
+  function onPhotoUploaded(photoRow) {
+    if (photoRow) {
+      setPhotos((prev) => {
+        // Avoid duplicates if realtime already fired
+        if (prev.some((p) => p.id === photoRow.id)) return prev
+        return [...prev, photoRow]
+      })
+    }
+    // Background refetch (no spinner) for full consistency
+    load(false)
+  }
 
   async function enableForJob() {
     setEnabling(true)
@@ -154,6 +169,7 @@ export default function PhotoRequirementsChecklist({ jobId, compact = false }) {
               requirement={nextMissing.req}
               size="sm"
               label={`Take "${nextMissing.req.label}"${nextMissing.roomLabel ? ` (${nextMissing.roomLabel})` : ''}`}
+              onUploaded={onPhotoUploaded}
             />
           )}
         </div>
@@ -207,6 +223,7 @@ export default function PhotoRequirementsChecklist({ jobId, compact = false }) {
             jobId={jobId}
             roomId={null}
             tone={toneColors}
+            onPhotoUploaded={onPhotoUploaded}
           />
         )}
 
@@ -226,6 +243,7 @@ export default function PhotoRequirementsChecklist({ jobId, compact = false }) {
             jobId={jobId}
             roomId={r.room.id}
             tone={toneColors}
+            onPhotoUploaded={onPhotoUploaded}
           />
         ))}
 
@@ -248,7 +266,7 @@ function findNextMissing(result) {
   return null
 }
 
-function ChecklistSection({ keyId, title, subtitle, score, metCount, totalCount, isOpen, onToggle, items, jobId, roomId, tone }) {
+function ChecklistSection({ keyId, title, subtitle, score, metCount, totalCount, isOpen, onToggle, items, jobId, roomId, tone, onPhotoUploaded }) {
   const tn = scoreTone(score)
   return (
     <div className="border border-ink-200 rounded">
@@ -271,7 +289,7 @@ function ChecklistSection({ keyId, title, subtitle, score, metCount, totalCount,
       {isOpen && (
         <div className="border-t border-ink-200 p-2 space-y-2">
           {items.map((item) => (
-            <RequirementRow key={item.req.key} item={item} jobId={jobId} roomId={roomId} />
+            <RequirementRow key={item.req.key} item={item} jobId={jobId} roomId={roomId} onPhotoUploaded={onPhotoUploaded} />
           ))}
         </div>
       )}
@@ -279,7 +297,7 @@ function ChecklistSection({ keyId, title, subtitle, score, metCount, totalCount,
   )
 }
 
-function RequirementRow({ item, jobId, roomId }) {
+function RequirementRow({ item, jobId, roomId, onPhotoUploaded }) {
   const { req, status, photosMatched, photosNeeded } = item
   const iconByStatus = { met: '✓', partial: '◐', missing: '✗', overridden: '—' }
   const colorByStatus = {
@@ -324,6 +342,7 @@ function RequirementRow({ item, jobId, roomId }) {
             roomId={roomId}
             requirement={req}
             size="sm"
+            onUploaded={onPhotoUploaded}
           />
         </div>
       )}
