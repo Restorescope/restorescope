@@ -6,6 +6,7 @@ import {
   Header, BottomNav, Section, Button, Card, CardHeader, CardBody, CardTitle,
   Input, Select, Textarea, Badge, EmptyState,
 } from '../../ui'
+import { gppFromTempRh } from '../../lib/psychrometrics'
 
 /**
  * MonitoringScreen — daily chamber visits.
@@ -28,6 +29,7 @@ export default function MonitoringScreen() {
   const [visits, setVisits] = useState([])
   const [chambers, setChambers] = useState([])
   const [equipment, setEquipment] = useState([])  // for figuring out which chambers have dehus
+  const [dehuReadings, setDehuReadings] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [showForm, setShowForm] = useState(false)
@@ -35,22 +37,25 @@ export default function MonitoringScreen() {
 
   const load = useCallback(async () => {
     setLoading(true); setError(null)
-    const [vRes, chRes, eqRes] = await Promise.all([
+    const [vRes, chRes, eqRes, drRes] = await Promise.all([
       supabase
         .from('monitoring_visits')
-        .select('id, chamber_id, visit_at, ambient_temp_f, ambient_rh, ambient_gpp, dehu_intake_rh, dehu_intake_gpp, dehu_exhaust_gpp, grain_depression, hours_running, notes')
+        .select('id, chamber_id, visit_at, ambient_temp_f, ambient_rh, ambient_gpp, hours_running, notes, outside_temp_f, outside_rh, outside_gpp, weather_conditions, unaffected_temp_f, unaffected_rh, unaffected_gpp')
         .eq('job_id', jobId)
         .order('visit_at', { ascending: false }),
       supabase.from('drying_chambers').select('id, name, class_of_water').eq('job_id', jobId).order('created_at'),
-      supabase.from('equipment_events').select('chamber_id, equipment_type, event_type, asset_label').eq('job_id', jobId),
+      supabase.from('equipment_events').select('chamber_id, equipment_type, event_type, asset_label, event_at').eq('job_id', jobId).order('event_at', { ascending: true }),
+      supabase.from('monitoring_dehu_readings').select('id, visit_id, dehu_asset_label, reading_at, exhaust_temp_f, exhaust_rh, exhaust_gpp').eq('job_id', jobId).order('reading_at', { ascending: false }),
     ])
     if (vRes.error) setError(vRes.error.message)
     else if (chRes.error) setError(chRes.error.message)
     else if (eqRes.error) setError(eqRes.error.message)
+    else if (drRes.error) setError(drRes.error.message)
     else {
       setVisits(vRes.data ?? [])
       setChambers(chRes.data ?? [])
       setEquipment(eqRes.data ?? [])
+      setDehuReadings(drRes.data ?? [])
     }
     setLoading(false)
   }, [jobId])
@@ -61,6 +66,12 @@ export default function MonitoringScreen() {
     setVisits((arr) => [v, ...arr])
     setShowForm(false)
     setDefaultChamberId('')
+    // Refresh dehu readings to pick up rows just inserted
+    supabase.from('monitoring_dehu_readings')
+      .select('id, visit_id, dehu_asset_label, reading_at, exhaust_temp_f, exhaust_rh, exhaust_gpp')
+      .eq('job_id', jobId)
+      .order('reading_at', { ascending: false })
+      .then(({ data }) => { if (data) setDehuReadings(data) })
   }
 
   // Group visits by chamber, sorted reverse-chronologically within each
@@ -101,6 +112,24 @@ export default function MonitoringScreen() {
     return result
   }, [equipment])
 
+  // List of currently-placed dehus across the WHOLE job (not per-chamber).
+  // Identified by their asset_label. Used for the per-dehu OUT readings.
+  // A dehu counts as "still placed" if it has a 'placed' event with no later 'removed' for the same label.
+  const jobDehus = useMemo(() => {
+    const byLabel = new Map() // label -> { lastEventType, equipmentType }
+    for (const e of equipment) {
+      if (!isDehu(e.equipment_type)) continue
+      const label = e.asset_label || '(unlabeled dehu)'
+      const existing = byLabel.get(label) || { label, equipment_type: e.equipment_type, lastEvent: null }
+      // events are sorted ascending, so the last assignment wins
+      existing.lastEvent = e.event_type
+      byLabel.set(label, existing)
+    }
+    return Array.from(byLabel.values())
+      .filter((d) => d.lastEvent !== 'removed')
+      .map((d) => ({ asset_label: d.label, equipment_type: d.equipment_type }))
+  }, [equipment])
+
   return (
     <div className="min-h-screen bg-ink-50">
       <Header breadcrumb={[
@@ -122,6 +151,7 @@ export default function MonitoringScreen() {
             tenantId={profile.tenant_id}
             chambers={chambers}
             chamberHasDehu={chamberDehuMap}
+            jobDehus={jobDehus}
             defaultChamberId={defaultChamberId}
             onSaved={onSaved}
             onCancel={() => { setShowForm(false); setDefaultChamberId('') }}
@@ -171,6 +201,7 @@ export default function MonitoringScreen() {
                   key={chamber?.id ?? 'unassigned'}
                   chamber={chamber}
                   visits={visits}
+                  dehuReadings={dehuReadings}
                   onAddVisit={() => {
                     if (chamber) setDefaultChamberId(chamber.id)
                     setShowForm(true)
@@ -191,32 +222,46 @@ export default function MonitoringScreen() {
 // Add visit form
 // ===========================================================================
 
-function AddVisitForm({ jobId, tenantId, chambers, chamberHasDehu, defaultChamberId, onSaved, onCancel }) {
+function AddVisitForm({ jobId, tenantId, chambers, chamberHasDehu, jobDehus, defaultChamberId, onSaved, onCancel }) {
   const { profile } = useAuth()
   const [form, setForm] = useState(() => ({
     chamber_id:        defaultChamberId || (chambers[0]?.id || ''),
     visit_at:          localDatetimeNow(),
+    // Chamber/ambient (auto-GPP)
     ambient_temp_f:    '',
     ambient_rh:        '',
-    ambient_gpp:       '',
-    dehu_intake_rh:    '',
-    dehu_intake_gpp:   '',
-    dehu_exhaust_gpp:  '',
+    // Outside
+    outside_at:        localDatetimeNow(),
+    outside_temp_f:    '',
+    outside_rh:        '',
+    weather_conditions:'',
+    // Unaffected
+    unaffected_at:     localDatetimeNow(),
+    unaffected_temp_f: '',
+    unaffected_rh:     '',
+    // Other
     hours_running:     '',
     notes:             '',
   }))
+  // Per-dehu OUT readings: { [asset_label]: { reading_at, exhaust_temp_f, exhaust_rh } }
+  const [dehuRows, setDehuRows] = useState(() => {
+    const init = {}
+    for (const d of (jobDehus || [])) {
+      init[d.asset_label] = { reading_at: localDatetimeNow(), exhaust_temp_f: '', exhaust_rh: '' }
+    }
+    return init
+  })
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState(null)
 
-  // Live grain depression preview
-  const grainDepression = useMemo(() => {
-    const intake = parseFloat(form.dehu_intake_gpp)
-    const exhaust = parseFloat(form.dehu_exhaust_gpp)
-    if (Number.isFinite(intake) && Number.isFinite(exhaust)) return intake - exhaust
-    return null
-  }, [form.dehu_intake_gpp, form.dehu_exhaust_gpp])
+  // Auto-computed GPP values (live)
+  const ambientGpp    = useMemo(() => gppFromTempRh(form.ambient_temp_f, form.ambient_rh), [form.ambient_temp_f, form.ambient_rh])
+  const outsideGpp    = useMemo(() => gppFromTempRh(form.outside_temp_f, form.outside_rh), [form.outside_temp_f, form.outside_rh])
+  const unaffectedGpp = useMemo(() => gppFromTempRh(form.unaffected_temp_f, form.unaffected_rh), [form.unaffected_temp_f, form.unaffected_rh])
 
-  const showDehuFields = form.chamber_id && (chamberHasDehu.get(form.chamber_id) ?? false)
+  function setDehuField(label, key, val) {
+    setDehuRows((d) => ({ ...d, [label]: { ...d[label], [key]: val } }))
+  }
 
   async function save() {
     setError(null)
@@ -228,24 +273,51 @@ function AddVisitForm({ jobId, tenantId, chambers, chamberHasDehu, defaultChambe
         job_id: jobId,
         chamber_id: form.chamber_id,
         visit_at: new Date(form.visit_at).toISOString(),
-        ambient_temp_f:   numOrNull(form.ambient_temp_f),
-        ambient_rh:       numOrNull(form.ambient_rh),
-        ambient_gpp:      numOrNull(form.ambient_gpp),
-        dehu_intake_rh:   numOrNull(form.dehu_intake_rh),
-        dehu_intake_gpp:  numOrNull(form.dehu_intake_gpp),
-        dehu_exhaust_gpp: numOrNull(form.dehu_exhaust_gpp),
-        grain_depression: grainDepression,
-        hours_running:    numOrNull(form.hours_running),
+        ambient_temp_f:    numOrNull(form.ambient_temp_f),
+        ambient_rh:        numOrNull(form.ambient_rh),
+        ambient_gpp:       ambientGpp,
+        outside_temp_f:    numOrNull(form.outside_temp_f),
+        outside_rh:        numOrNull(form.outside_rh),
+        outside_gpp:       outsideGpp,
+        weather_conditions: form.weather_conditions || null,
+        unaffected_temp_f: numOrNull(form.unaffected_temp_f),
+        unaffected_rh:     numOrNull(form.unaffected_rh),
+        unaffected_gpp:    unaffectedGpp,
+        hours_running:     numOrNull(form.hours_running),
         notes: form.notes || null,
         created_by: profile.id,
       }
-      const { data, error: err } = await supabase
+      const { data: visitRow, error: err } = await supabase
         .from('monitoring_visits')
         .insert(payload)
         .select('*')
         .single()
       if (err) throw err
-      onSaved(data)
+
+      // Insert per-dehu OUT readings (only those with temp or RH entered)
+      const dehuPayload = []
+      for (const [label, row] of Object.entries(dehuRows)) {
+        const temp = numOrNull(row.exhaust_temp_f)
+        const rh   = numOrNull(row.exhaust_rh)
+        if (temp == null && rh == null) continue
+        dehuPayload.push({
+          tenant_id: tenantId,
+          job_id: jobId,
+          visit_id: visitRow.id,
+          dehu_asset_label: label,
+          reading_at: new Date(row.reading_at || form.visit_at).toISOString(),
+          exhaust_temp_f: temp,
+          exhaust_rh: rh,
+          exhaust_gpp: gppFromTempRh(temp, rh),
+          created_by: profile.id,
+        })
+      }
+      if (dehuPayload.length > 0) {
+        const { error: dehuErr } = await supabase.from('monitoring_dehu_readings').insert(dehuPayload)
+        if (dehuErr) throw dehuErr
+      }
+
+      onSaved(visitRow)
     } catch (e) {
       setError(e.message)
     } finally {
@@ -255,10 +327,12 @@ function AddVisitForm({ jobId, tenantId, chambers, chamberHasDehu, defaultChambe
 
   return (
     <Card>
-      <CardHeader><CardTitle>Log a monitoring visit</CardTitle></CardHeader>
+      <CardHeader>
+        <CardTitle>Log monitoring visit</CardTitle>
+      </CardHeader>
       <CardBody className="space-y-4">
         {error && (
-          <div role="alert" className="bg-red-50 border border-red-200 text-danger rounded p-3 text-sm">
+          <div role="alert" className="bg-red-50 border border-red-200 text-danger rounded p-2 text-sm">
             {error}
           </div>
         )}
@@ -280,8 +354,9 @@ function AddVisitForm({ jobId, tenantId, chambers, chamberHasDehu, defaultChambe
           />
         </div>
 
+        {/* CHAMBER AMBIENT — auto GPP */}
         <div className="border-t border-ink-200 pt-3">
-          <p className="text-sm font-semibold text-ink-700 mb-3">Ambient (chamber air)</p>
+          <p className="text-sm font-semibold text-ink-700 mb-3">Chamber ambient</p>
           <div className="grid sm:grid-cols-3 gap-3">
             <Input
               label="Temperature"
@@ -302,76 +377,102 @@ function AddVisitForm({ jobId, tenantId, chambers, chamberHasDehu, defaultChambe
               onChange={(e) => setForm((f) => ({ ...f, ambient_rh: e.target.value }))}
               hint="% RH"
             />
-            <Input
-              label="Grains per pound"
-              type="number"
-              step="0.1"
-              inputMode="decimal"
-              value={form.ambient_gpp}
-              onChange={(e) => setForm((f) => ({ ...f, ambient_gpp: e.target.value }))}
-              hint="GPP"
-            />
+            <ReadOnlyGpp label="Grains per pound" value={ambientGpp} hint="Auto from temp + RH" />
           </div>
         </div>
 
-        {(showDehuFields || form.dehu_intake_gpp || form.dehu_exhaust_gpp) && (
-          <div className="border-t border-ink-200 pt-3">
-            <div className="flex items-center justify-between mb-3">
-              <p className="text-sm font-semibold text-ink-700">Dehumidifier performance</p>
-              {grainDepression != null && (
-                <Badge tone={grainDepression > 10 ? 'green' : grainDepression > 5 ? 'amber' : 'red'}>
-                  Grain depression {grainDepression.toFixed(1)} GPP
-                </Badge>
-              )}
-            </div>
-            <div className="grid sm:grid-cols-2 gap-3">
-              <Input
-                label="Intake RH"
-                type="number"
-                step="0.1"
-                inputMode="decimal"
-                value={form.dehu_intake_rh}
-                onChange={(e) => setForm((f) => ({ ...f, dehu_intake_rh: e.target.value }))}
-                hint="% RH at the dehu intake"
-              />
-              <Input
-                label="Hours running"
-                type="number"
-                step="0.5"
-                inputMode="decimal"
-                value={form.hours_running}
-                onChange={(e) => setForm((f) => ({ ...f, hours_running: e.target.value }))}
-                hint="Since last check"
-              />
-              <Input
-                label="Intake GPP"
-                type="number"
-                step="0.1"
-                inputMode="decimal"
-                value={form.dehu_intake_gpp}
-                onChange={(e) => setForm((f) => ({ ...f, dehu_intake_gpp: e.target.value }))}
-                hint="GPP at the intake"
-              />
-              <Input
-                label="Exhaust GPP"
-                type="number"
-                step="0.1"
-                inputMode="decimal"
-                value={form.dehu_exhaust_gpp}
-                onChange={(e) => setForm((f) => ({ ...f, dehu_exhaust_gpp: e.target.value }))}
-                hint="GPP at the exhaust"
-              />
-            </div>
-            <p className="text-xs text-ink-500 mt-2">
-              Grain depression auto-computed as intake GPP − exhaust GPP. Healthy LGRs typically deliver &gt; 10 GPP depression.
-            </p>
+        {/* OUTSIDE */}
+        <div className="border-t border-ink-200 pt-3">
+          <p className="text-sm font-semibold text-ink-700 mb-3">Outside</p>
+          <div className="grid sm:grid-cols-2 gap-3 mb-3">
+            <Input
+              label="Reading time"
+              type="datetime-local"
+              value={form.outside_at}
+              onChange={(e) => setForm((f) => ({ ...f, outside_at: e.target.value }))}
+            />
+            <Input
+              label="Weather conditions"
+              type="text"
+              placeholder="e.g. Sunny, 65°F, calm"
+              value={form.weather_conditions}
+              onChange={(e) => setForm((f) => ({ ...f, weather_conditions: e.target.value }))}
+            />
           </div>
-        )}
+          <div className="grid sm:grid-cols-3 gap-3">
+            <Input
+              label="Temperature"
+              type="number"
+              step="0.1"
+              inputMode="decimal"
+              value={form.outside_temp_f}
+              onChange={(e) => setForm((f) => ({ ...f, outside_temp_f: e.target.value }))}
+              hint="°F"
+            />
+            <Input
+              label="Relative humidity"
+              type="number"
+              step="0.1"
+              inputMode="decimal"
+              value={form.outside_rh}
+              onChange={(e) => setForm((f) => ({ ...f, outside_rh: e.target.value }))}
+              hint="% RH"
+            />
+            <ReadOnlyGpp label="Grains per pound" value={outsideGpp} hint="Auto from temp + RH" />
+          </div>
+        </div>
 
-        {!showDehuFields && form.chamber_id && (
-          <p className="text-xs text-ink-500 italic">
-            No dehumidifier currently placed in this chamber. Dehu performance fields hidden — type any GPP value above to show them anyway.
-          </p>
+        {/* UNAFFECTED */}
+        <div className="border-t border-ink-200 pt-3">
+          <p className="text-sm font-semibold text-ink-700 mb-3">Unaffected area</p>
+          <div className="grid sm:grid-cols-2 gap-3 mb-3">
+            <Input
+              label="Reading time"
+              type="datetime-local"
+              value={form.unaffected_at}
+              onChange={(e) => setForm((f) => ({ ...f, unaffected_at: e.target.value }))}
+            />
+          </div>
+          <div className="grid sm:grid-cols-3 gap-3">
+            <Input
+              label="Temperature"
+              type="number"
+              step="0.1"
+              inputMode="decimal"
+              value={form.unaffected_temp_f}
+              onChange={(e) => setForm((f) => ({ ...f, unaffected_temp_f: e.target.value }))}
+              hint="°F"
+            />
+            <Input
+              label="Relative humidity"
+              type="number"
+              step="0.1"
+              inputMode="decimal"
+              value={form.unaffected_rh}
+              onChange={(e) => setForm((f) => ({ ...f, unaffected_rh: e.target.value }))}
+              hint="% RH"
+            />
+            <ReadOnlyGpp label="Grains per pound" value={unaffectedGpp} hint="Auto from temp + RH" />
+          </div>
+        </div>
+
+        {/* PER-DEHU OUT READINGS */}
+        {jobDehus && jobDehus.length > 0 && (
+          <div className="border-t border-ink-200 pt-3">
+            <p className="text-sm font-semibold text-ink-700 mb-1">Dehumidifier exhaust (OUT)</p>
+            <p className="text-xs text-ink-500 mb-3">One reading per dehu. Leave fields empty to skip.</p>
+            <div className="space-y-4">
+              {jobDehus.map((d) => (
+                <DehuRow
+                  key={d.asset_label}
+                  label={d.asset_label}
+                  equipmentType={d.equipment_type}
+                  row={dehuRows[d.asset_label] || { reading_at: form.visit_at, exhaust_temp_f: '', exhaust_rh: '' }}
+                  onChange={(k, v) => setDehuField(d.asset_label, k, v)}
+                />
+              ))}
+            </div>
+          </div>
         )}
 
         <Textarea
@@ -391,11 +492,62 @@ function AddVisitForm({ jobId, tenantId, chambers, chamberHasDehu, defaultChambe
   )
 }
 
+function ReadOnlyGpp({ label, value, hint }) {
+  return (
+    <div>
+      <label className="block text-xs font-semibold text-ink-700 mb-1">{label}</label>
+      <div className="w-full px-2 py-1.5 border border-ink-200 rounded bg-ink-50 text-sm text-ink-900 min-h-[34px] flex items-center">
+        {value != null ? value : <span className="text-ink-400 italic">—</span>}
+      </div>
+      {hint && <p className="text-xs text-ink-500 mt-1">{hint}</p>}
+    </div>
+  )
+}
+
+function DehuRow({ label, equipmentType, row, onChange }) {
+  const gpp = useMemo(() => gppFromTempRh(row.exhaust_temp_f, row.exhaust_rh), [row.exhaust_temp_f, row.exhaust_rh])
+  return (
+    <div className="bg-ink-50/50 border border-ink-200 rounded p-3">
+      <p className="text-sm font-semibold text-ink-900 mb-2">{label}{equipmentType ? <span className="text-xs text-ink-500 font-normal ml-2">{equipmentType}</span> : null}</p>
+      <div className="grid sm:grid-cols-2 gap-3 mb-3">
+        <Input
+          label="Reading time"
+          type="datetime-local"
+          value={row.reading_at}
+          onChange={(e) => onChange('reading_at', e.target.value)}
+        />
+      </div>
+      <div className="grid sm:grid-cols-3 gap-3">
+        <Input
+          label="Exhaust temp"
+          type="number"
+          step="0.1"
+          inputMode="decimal"
+          value={row.exhaust_temp_f}
+          onChange={(e) => onChange('exhaust_temp_f', e.target.value)}
+          hint="°F"
+        />
+        <Input
+          label="Exhaust RH"
+          type="number"
+          step="0.1"
+          inputMode="decimal"
+          value={row.exhaust_rh}
+          onChange={(e) => onChange('exhaust_rh', e.target.value)}
+          hint="% RH"
+        />
+        <ReadOnlyGpp label="Exhaust GPP" value={gpp} hint="Auto" />
+      </div>
+    </div>
+  )
+}
+
+// ===========================================================================
 // ===========================================================================
 // Chamber history card
 // ===========================================================================
 
-function ChamberHistoryCard({ chamber, visits, onAddVisit }) {
+function ChamberHistoryCard({ chamber, visits, dehuReadings = [], onAddVisit }) {
   // Trend: ambient RH over time (most recent on right) — drying should trend down
   const trend = useMemo(() => {
     const rhs = visits.map((v) => v.ambient_rh).filter((v) => v != null)
@@ -406,6 +558,16 @@ function ChamberHistoryCard({ chamber, visits, onAddVisit }) {
     const diff = newest - oldest
     return { diff, oldest, newest, trending: diff < -2 ? 'improving' : diff > 2 ? 'worsening' : 'stable' }
   }, [visits])
+
+  // Group dehu readings by visit_id for inline display
+  const dehuByVisit = useMemo(() => {
+    const m = new Map()
+    for (const r of dehuReadings) {
+      if (!m.has(r.visit_id)) m.set(r.visit_id, [])
+      m.get(r.visit_id).push(r)
+    }
+    return m
+  }, [dehuReadings])
 
   return (
     <Card>
@@ -425,47 +587,62 @@ function ChamberHistoryCard({ chamber, visits, onAddVisit }) {
       </CardHeader>
       <CardBody>
         <div className="overflow-x-auto -mx-4 px-4">
-          <table className="w-full text-sm min-w-[640px]">
+          <table className="w-full text-sm min-w-[900px]">
             <thead>
               <tr className="text-left text-xs text-ink-500 uppercase tracking-wide border-b border-ink-200">
                 <th className="py-1.5 pr-3 font-semibold">When</th>
-                <th className="py-1.5 pr-3 font-semibold">Temp</th>
-                <th className="py-1.5 pr-3 font-semibold">RH</th>
-                <th className="py-1.5 pr-3 font-semibold">GPP</th>
-                <th className="py-1.5 pr-3 font-semibold">Dehu intake RH/GPP</th>
-                <th className="py-1.5 pr-3 font-semibold">Exhaust GPP</th>
-                <th className="py-1.5 pr-3 font-semibold">Δ Grain</th>
+                <th className="py-1.5 pr-3 font-semibold">Chamber<br/>T / RH / GPP</th>
+                <th className="py-1.5 pr-3 font-semibold">Outside<br/>T / RH / GPP</th>
+                <th className="py-1.5 pr-3 font-semibold">Unaffected<br/>T / RH / GPP</th>
+                <th className="py-1.5 pr-3 font-semibold">Dehu OUT<br/>(per dehu)</th>
                 <th className="py-1.5 pr-3 font-semibold">Notes</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-ink-100">
-              {visits.map((v) => (
-                <tr key={v.id}>
-                  <td className="py-1.5 pr-3 font-mono text-xs">{formatDateShort(v.visit_at)}</td>
-                  <td className="py-1.5 pr-3">{v.ambient_temp_f != null ? `${v.ambient_temp_f}°F` : '—'}</td>
-                  <td className="py-1.5 pr-3">{v.ambient_rh != null ? `${v.ambient_rh}%` : '—'}</td>
-                  <td className="py-1.5 pr-3">{v.ambient_gpp != null ? `${v.ambient_gpp}` : '—'}</td>
-                  <td className="py-1.5 pr-3 text-xs">
-                    {v.dehu_intake_rh != null && `${v.dehu_intake_rh}% / `}
-                    {v.dehu_intake_gpp != null ? `${v.dehu_intake_gpp}` : (v.dehu_intake_rh == null ? '—' : '')}
-                  </td>
-                  <td className="py-1.5 pr-3">{v.dehu_exhaust_gpp != null ? `${v.dehu_exhaust_gpp}` : '—'}</td>
-                  <td className="py-1.5 pr-3">
-                    {v.grain_depression != null ? (
-                      <span className={`font-semibold ${v.grain_depression > 10 ? 'text-success' : v.grain_depression > 5 ? 'text-warning' : 'text-danger'}`}>
-                        {v.grain_depression.toFixed(1)}
-                      </span>
-                    ) : '—'}
-                  </td>
-                  <td className="py-1.5 pr-3 text-xs text-ink-600 truncate max-w-[180px]">{v.notes || ''}</td>
-                </tr>
-              ))}
+              {visits.map((v) => {
+                const dehus = dehuByVisit.get(v.id) || []
+                return (
+                  <tr key={v.id}>
+                    <td className="py-1.5 pr-3 font-mono text-xs align-top">{formatDateShort(v.visit_at)}</td>
+                    <td className="py-1.5 pr-3 align-top">{tripletCell(v.ambient_temp_f, v.ambient_rh, v.ambient_gpp)}</td>
+                    <td className="py-1.5 pr-3 align-top">
+                      {tripletCell(v.outside_temp_f, v.outside_rh, v.outside_gpp)}
+                      {v.weather_conditions && <div className="text-[10px] text-ink-500 mt-0.5 italic">{v.weather_conditions}</div>}
+                    </td>
+                    <td className="py-1.5 pr-3 align-top">{tripletCell(v.unaffected_temp_f, v.unaffected_rh, v.unaffected_gpp)}</td>
+                    <td className="py-1.5 pr-3 align-top text-xs">
+                      {dehus.length === 0 ? <span className="text-ink-400">—</span> : (
+                        <div className="space-y-1">
+                          {dehus.map((r) => (
+                            <div key={r.id}>
+                              <span className="font-semibold">{r.dehu_asset_label}:</span>{' '}
+                              {r.exhaust_temp_f != null && `${r.exhaust_temp_f}°F`}
+                              {r.exhaust_rh != null && ` / ${r.exhaust_rh}%`}
+                              {r.exhaust_gpp != null && ` / ${r.exhaust_gpp} gpp`}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </td>
+                    <td className="py-1.5 pr-3 text-xs text-ink-600 truncate max-w-[180px] align-top">{v.notes || ''}</td>
+                  </tr>
+                )
+              })}
             </tbody>
           </table>
         </div>
       </CardBody>
     </Card>
   )
+}
+
+function tripletCell(t, rh, gpp) {
+  const parts = []
+  if (t != null) parts.push(`${t}°F`)
+  if (rh != null) parts.push(`${rh}%`)
+  if (gpp != null) parts.push(`${gpp} gpp`)
+  if (parts.length === 0) return <span className="text-ink-400">—</span>
+  return <div className="text-xs">{parts.join(' / ')}</div>
 }
 
 // ===========================================================================
