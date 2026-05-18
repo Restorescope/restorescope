@@ -56,6 +56,27 @@ export default function ReviewScreen() {
   async function markReadyForReview() {
     setError(null)
     try {
+      // Gate: check that all affected rooms are tech_complete + pm_complete
+      if (job.photo_requirements_enabled !== false) {
+        const { data: rooms, error: roomsErr } = await supabase
+          .from('affected_rooms')
+          .select('id, room_name, tech_complete_at, pm_complete_at')
+          .eq('job_id', jobId)
+        if (roomsErr) throw roomsErr
+        const blockers = []
+        for (const r of (rooms || [])) {
+          if (!r.tech_complete_at) blockers.push(`${r.room_name}: Tech work not marked complete`)
+          if (!r.pm_complete_at)   blockers.push(`${r.room_name}: PM/Owner docs not marked complete`)
+        }
+        if (blockers.length > 0) {
+          setError(
+            'Cannot mark ready for review — every affected room needs both Tech and PM/Owner completion first:\n• ' +
+            blockers.join('\n• ')
+          )
+          return
+        }
+      }
+
       const { error: err } = await supabase
         .from('jobs')
         .update({ status: 'ready_for_review' })

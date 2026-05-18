@@ -241,3 +241,53 @@ export function scoreTone(score) {
   if (score >= 50) return 'yellow'
   return 'red'
 }
+
+// ============================================================================
+// Role-aware completion gates
+// ============================================================================
+//
+// A room can be marked "tech complete" or "pm complete" — each side checks
+// only the requirements with the matching required_role. Items with
+// required_role='any' don't gate either side (they're nice-to-haves that
+// count toward the overall score but don't block completion).
+//
+// Returns:
+//   { ok, missing, requirement_count }
+// where missing is an array of { key, label } for required items that aren't met.
+
+export function evaluateRoomCompletion({ room, items, side }) {
+  // side: 'tech' or 'pm'
+  // items: the array returned in result.rooms[i].items
+  const targetRole = side === 'tech' ? 'tech_required' : 'pm_required'
+  const missing = []
+  let requirementCount = 0
+  for (const it of items) {
+    const role = it.req.required_role || 'any'
+    if (role !== targetRole) continue
+    if (it.req.severity !== 'required') continue
+    requirementCount++
+    if (it.status === 'met' || it.status === 'overridden') continue
+    missing.push({ key: it.req.key, label: it.req.label })
+  }
+  return { ok: missing.length === 0, missing, requirementCount }
+}
+
+// Aggregate completion check for the whole job — used by "ready for review" gate.
+export function evaluateJobCompletion({ result, rooms }) {
+  const issues = []
+  for (const r of (result.rooms || [])) {
+    const room = rooms.find((rm) => rm.id === r.room.id) || r.room
+    const techDone = !!room.tech_complete_at
+    const pmDone = !!room.pm_complete_at
+    if (!techDone) issues.push({ room: room.room_name || 'Room', side: 'tech' })
+    if (!pmDone)   issues.push({ room: room.room_name || 'Room', side: 'pm' })
+  }
+  // Also check job-level required photos
+  const jobItems = result.job?.items || []
+  for (const it of jobItems) {
+    if (it.req.severity !== 'required') continue
+    if (it.status === 'met' || it.status === 'overridden') continue
+    issues.push({ jobLevel: true, key: it.req.key, label: it.req.label })
+  }
+  return { ok: issues.length === 0, issues }
+}

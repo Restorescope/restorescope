@@ -2,7 +2,7 @@ import { useEffect, useState, useMemo } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/auth.jsx'
 import { Card, CardHeader, CardBody, CardTitle, Badge, Button } from '../ui'
-import { computeJobRequirements, scoreTone } from '../lib/photoRequirements'
+import { computeJobRequirements, scoreTone, evaluateRoomCompletion } from '../lib/photoRequirements'
 import RequirementPhotoButton from './RequirementPhotoButton'
 
 /**
@@ -27,6 +27,7 @@ export default function PhotoRequirementsChecklist({ jobId, compact = false }) {
   const [overrides, setOverrides] = useState([])
   const [enabling, setEnabling] = useState(false)
   const [openSections, setOpenSections] = useState({}) // collapsible state, keys: 'job' or room.id
+  const [roomCompletions, setRoomCompletions] = useState({}) // optimistic completion state per room.id
 
   const load = async (isInitial = false) => {
     if (isInitial) setLoading(true)
@@ -35,7 +36,7 @@ export default function PhotoRequirementsChecklist({ jobId, compact = false }) {
       const [jobRes, photosRes, roomsRes, eqRes, catalogRes, overridesRes] = await Promise.all([
         supabase.from('jobs').select('id, loss_info, work_types_performed, photo_requirements_enabled').eq('id', jobId).single(),
         supabase.from('photos').select('id, category, caption, room_id').eq('job_id', jobId),
-        supabase.from('affected_rooms').select('id, room_name, materials, actions').eq('job_id', jobId).order('created_at'),
+        supabase.from('affected_rooms').select('id, room_name, materials, actions, tech_complete_at, tech_completed_by, pm_complete_at, pm_completed_by').eq('job_id', jobId).order('created_at'),
         supabase.from('equipment').select('id').eq('job_id', jobId),
         supabase.from('photo_requirements').select('*').or(`tenant_id.is.null,tenant_id.eq.${profile.tenant_id}`).eq('active', true),
         supabase.from('photo_requirement_overrides').select('*').eq('job_id', jobId),
@@ -242,8 +243,21 @@ export default function PhotoRequirementsChecklist({ jobId, compact = false }) {
             items={r.items}
             jobId={jobId}
             roomId={r.room.id}
+            room={r.room}
+            userRole={profile.role}
             tone={toneColors}
             onPhotoUploaded={onPhotoUploaded}
+            onRoomUpdated={(updates) => {
+              // Update local state so the lock banner appears immediately
+              setRoomCompletions((rc) => ({ ...rc, [r.room.id]: { ...rc[r.room.id], ...updates } }))
+              load(false)
+            }}
+            completion={roomCompletions[r.room.id] || {
+              tech_complete_at: r.room.tech_complete_at,
+              tech_completed_by: r.room.tech_completed_by,
+              pm_complete_at: r.room.pm_complete_at,
+              pm_completed_by: r.room.pm_completed_by,
+            }}
           />
         ))}
 
@@ -266,10 +280,19 @@ function findNextMissing(result) {
   return null
 }
 
-function ChecklistSection({ keyId, title, subtitle, score, metCount, totalCount, isOpen, onToggle, items, jobId, roomId, tone, onPhotoUploaded }) {
+function ChecklistSection({
+  keyId, title, subtitle, score, metCount, totalCount,
+  isOpen, onToggle, items, jobId, roomId, room, userRole, tone,
+  onPhotoUploaded, onRoomUpdated, completion,
+}) {
   const tn = scoreTone(score)
+  const isRoom = !!roomId
+  const techDone = !!completion?.tech_complete_at
+  const pmDone   = !!completion?.pm_complete_at
+  const fullyDone = isRoom && techDone && pmDone
+
   return (
-    <div className="border border-ink-200 rounded">
+    <div className={`border rounded ${fullyDone ? 'border-green-400 bg-green-50/30' : 'border-ink-200'}`}>
       <button
         type="button"
         onClick={onToggle}
@@ -281,6 +304,8 @@ function ChecklistSection({ keyId, title, subtitle, score, metCount, totalCount,
             <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold border ${tone[tn]}`}>
               {score} · {metCount}/{totalCount}
             </span>
+            {isRoom && techDone && <Badge tone="green">✓ Tech done</Badge>}
+            {isRoom && pmDone && <Badge tone="green">✓ PM done</Badge>}
           </div>
           <p className="text-xs text-ink-500 mt-0.5">{subtitle}</p>
         </div>
@@ -288,11 +313,223 @@ function ChecklistSection({ keyId, title, subtitle, score, metCount, totalCount,
       </button>
       {isOpen && (
         <div className="border-t border-ink-200 p-2 space-y-2">
+          {/* Role completion controls — only on per-room sections */}
+          {isRoom && room && (
+            <RoomCompletionControls
+              room={room}
+              userRole={userRole}
+              items={items}
+              completion={completion}
+              onRoomUpdated={onRoomUpdated}
+            />
+          )}
           {items.map((item) => (
             <RequirementRow key={item.req.key} item={item} jobId={jobId} roomId={roomId} onPhotoUploaded={onPhotoUploaded} />
           ))}
         </div>
       )}
+    </div>
+  )
+}
+
+/**
+ * RoomCompletionControls — shows Tech complete + PM complete buttons.
+ *
+ * Tech-level user (role='technician'):
+ *   - Can mark tech complete (only if no tech_required photos missing)
+ *   - Cannot mark PM complete
+ *   - Cannot override
+ *
+ * PM/Owner (role in 'pm','owner'):
+ *   - Can mark both sides
+ *   - Can override either side with typed reason
+ */
+function RoomCompletionControls({ room, userRole, items, completion, onRoomUpdated }) {
+  const isOwnerOrPM = userRole === 'owner' || userRole === 'pm'
+  const techDone = !!completion?.tech_complete_at
+  const pmDone   = !!completion?.pm_complete_at
+
+  const techCheck = useMemo(() => evaluateRoomCompletion({ room, items, side: 'tech' }), [room, items])
+  const pmCheck   = useMemo(() => evaluateRoomCompletion({ room, items, side: 'pm' }), [room, items])
+
+  return (
+    <div className="bg-white border border-ink-200 rounded p-2 mb-2 space-y-2">
+      <CompletionRow
+        side="tech"
+        label="Tech work complete"
+        check={techCheck}
+        done={techDone}
+        canMark={true} // any tech can mark; PM/owner also can
+        canOverride={isOwnerOrPM}
+        room={room}
+        onRoomUpdated={onRoomUpdated}
+      />
+      <CompletionRow
+        side="pm"
+        label="PM/Owner documentation complete"
+        check={pmCheck}
+        done={pmDone}
+        canMark={isOwnerOrPM}
+        canOverride={isOwnerOrPM}
+        room={room}
+        onRoomUpdated={onRoomUpdated}
+      />
+    </div>
+  )
+}
+
+function CompletionRow({ side, label, check, done, canMark, canOverride, room, onRoomUpdated }) {
+  const [busy, setBusy] = useState(false)
+  const [showOverride, setShowOverride] = useState(false)
+  const [reason, setReason] = useState('')
+  const [error, setError] = useState(null)
+
+  async function mark(overrideReason = null) {
+    setBusy(true); setError(null)
+    try {
+      const stamp = new Date().toISOString()
+      const { data: user } = await supabase.auth.getUser()
+      const userId = user?.user?.id
+
+      const updates = side === 'tech'
+        ? { tech_complete_at: stamp, tech_completed_by: userId }
+        : { pm_complete_at: stamp, pm_completed_by: userId }
+
+      const { error: e } = await supabase.from('affected_rooms').update(updates).eq('id', room.id)
+      if (e) throw e
+
+      // If this was an override, log it
+      if (overrideReason) {
+        await supabase.from('room_completion_overrides').insert({
+          tenant_id: room.tenant_id,
+          job_id: room.job_id,
+          room_id: room.id,
+          side,
+          reason: overrideReason,
+          missing_keys: check.missing.map((m) => m.key),
+          created_by: userId,
+        })
+      }
+      onRoomUpdated?.(updates)
+      setShowOverride(false)
+      setReason('')
+    } catch (e) {
+      setError(e.message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function unmark() {
+    if (!confirm(`Unmark ${side === 'tech' ? 'tech' : 'PM'} complete? This will allow further edits to gate the room again.`)) return
+    setBusy(true); setError(null)
+    try {
+      const updates = side === 'tech'
+        ? { tech_complete_at: null, tech_completed_by: null }
+        : { pm_complete_at: null, pm_completed_by: null }
+      const { error: e } = await supabase.from('affected_rooms').update(updates).eq('id', room.id)
+      if (e) throw e
+      onRoomUpdated?.(updates)
+    } catch (e) {
+      setError(e.message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  if (done) {
+    return (
+      <div className="flex items-center justify-between gap-2 flex-wrap">
+        <div className="flex items-center gap-2">
+          <span className="text-green-700 font-bold">✓</span>
+          <span className="text-sm font-semibold text-ink-900">{label}</span>
+        </div>
+        {canMark && (
+          <Button variant="ghost" size="sm" onClick={unmark} loading={busy}>Reopen</Button>
+        )}
+      </div>
+    )
+  }
+
+  if (!canMark) {
+    return (
+      <div className="flex items-center gap-2 text-sm text-ink-500">
+        <span>○ {label}</span>
+        <Badge tone="neutral">{check.requirementCount} required</Badge>
+        <span className="text-xs italic">PM/Owner only</span>
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center justify-between gap-2 flex-wrap">
+        <div className="flex items-center gap-2">
+          <span className="text-sm font-semibold text-ink-900">{label}</span>
+          {check.requirementCount === 0 ? (
+            <Badge tone="neutral">No required items</Badge>
+          ) : check.ok ? (
+            <Badge tone="green">All {check.requirementCount} required met</Badge>
+          ) : (
+            <Badge tone="red">{check.missing.length} missing</Badge>
+          )}
+        </div>
+        <div className="flex gap-2">
+          {check.ok ? (
+            <Button onClick={() => mark()} loading={busy} size="sm">Mark complete</Button>
+          ) : (
+            <>
+              <Button onClick={() => mark()} loading={busy} size="sm" disabled>Mark complete</Button>
+              {canOverride && (
+                <Button variant="ghost" size="sm" onClick={() => setShowOverride((s) => !s)}>
+                  {showOverride ? 'Cancel override' : 'Override'}
+                </Button>
+              )}
+            </>
+          )}
+        </div>
+      </div>
+
+      {/* List missing items */}
+      {!check.ok && check.missing.length > 0 && (
+        <div className="bg-red-50 border border-red-200 rounded p-2">
+          <p className="text-xs font-semibold text-danger mb-1">Missing required:</p>
+          <ul className="text-xs text-ink-900 list-disc pl-4 space-y-0.5">
+            {check.missing.map((m) => (
+              <li key={m.key}>{m.label}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {/* Override flow */}
+      {showOverride && canOverride && (
+        <div className="bg-yellow-50 border border-yellow-200 rounded p-2 space-y-2">
+          <p className="text-xs text-ink-900">
+            Override the gate. Provide a reason — this is logged for audit.
+          </p>
+          <textarea
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+            rows={2}
+            placeholder="e.g. Customer locked property before demo photos could be retaken"
+            className="w-full px-2 py-1.5 border border-ink-300 rounded text-sm"
+          />
+          <div className="flex justify-end">
+            <Button
+              size="sm"
+              variant="accent"
+              loading={busy}
+              disabled={!reason.trim()}
+              onClick={() => mark(reason.trim())}
+            >
+              Override & mark complete
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {error && <p className="text-xs text-danger">{error}</p>}
     </div>
   )
 }
@@ -323,6 +560,12 @@ function RequirementRow({ item, jobId, roomId, onPhotoUploaded }) {
           <span className="text-sm font-semibold text-ink-900">{req.label}</span>
           {req.severity === 'recommended' && (
             <Badge tone="neutral">Recommended</Badge>
+          )}
+          {req.required_role === 'tech_required' && (
+            <Badge tone="blue">Tech</Badge>
+          )}
+          {req.required_role === 'pm_required' && (
+            <Badge tone="amber">PM</Badge>
           )}
           <span className={`text-xs font-mono ${colorByStatus[status]}`}>
             {photosMatched}/{photosNeeded}
